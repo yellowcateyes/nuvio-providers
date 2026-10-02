@@ -375,6 +375,16 @@ function formatSize(sizeValue) {
   }
   return `${(sizeValue / 1e6).toFixed(0)} MB`;
 }
+// The API's resolution label is often generous ("1080P" for a stream whose CDN path says /720/ and which
+// ffprobe measures as 1584x720). Trust the rendition in the URL path when it is lower than the claim.
+function truthfulQuality(url, claimed) {
+  const m = String(url || "").match(/[\/_](\d{3,4})\/index/);
+  const real = m ? parseInt(m[1], 10) : 0;
+  const claimedNum = parseInt(String(claimed).replace(/[^0-9]/g, ""), 10) || 0;
+  if (real >= 240 && real <= 2160 && claimedNum > real) return `${real}P`;
+  return claimed;
+}
+
 function resolutionToQuality(resolution) {
   const qualityMap = {
     1: "480p",
@@ -420,6 +430,7 @@ function processVideoResponse(videoData, mediaInfo, seasonNum, episodeNum, resol
     for (const video of data.videos) {
       let videoQuality = video.resolutionDescription || video.resolution || quality;
       videoQuality = videoQuality.replace(/^(SD|HD|FHD)\s+/i, "");
+      videoQuality = truthfulQuality(video.url || videoUrl, videoQuality);
       const streamName = languageInfo ? `Castle ${languageInfo} - ${videoQuality}` : `Castle - ${videoQuality}`;
       streams.push({
         name: streamName,
@@ -433,12 +444,13 @@ function processVideoResponse(videoData, mediaInfo, seasonNum, episodeNum, resol
       });
     }
   } else {
-    const streamName = languageInfo ? `Castle ${languageInfo} - ${quality}` : `Castle - ${quality}`;
+    const finalQuality = truthfulQuality(videoUrl, quality);
+    const streamName = languageInfo ? `Castle ${languageInfo} - ${finalQuality}` : `Castle - ${finalQuality}`;
     streams.push({
       name: streamName,
       title: mediaTitle,
       url: videoUrl,
-      quality,
+      quality: finalQuality,
       size: formatSize(data.size),
       headers: PLAYBACK_HEADERS,
       provider: "castle",
