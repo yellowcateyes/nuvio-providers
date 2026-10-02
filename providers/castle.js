@@ -1,6 +1,6 @@
 /**
  * castle - Built from src/castle/
- * Generated: 2026-10-02T21:00:18.010Z
+ * Generated: 2026-10-02T21:12:25.544Z
  */
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
@@ -536,6 +536,11 @@ var require_validate = __commonJS({
         return m[1] + ref;
       return m[1] + m[2].replace(/[^\/]*$/, "") + ref;
     }
+    function normalizeUrl(url) {
+      return String(url).replace(/[^\x21-\x7E]|[ "<>\\^`{|}\[\]]/g, function(c) {
+        return encodeURIComponent(c);
+      });
+    }
     function qualityFromWidth(width) {
       if (width >= 3800)
         return "2160p";
@@ -674,10 +679,17 @@ var require_validate = __commonJS({
       var unique = streams.filter(function(s) {
         if (!s || typeof s.url !== "string" || !/^https?:\/\//i.test(s.url))
           return false;
-        if (seen[s.url])
+        var key = normalizeUrl(s.url);
+        if (seen[key])
           return false;
-        seen[s.url] = true;
+        seen[key] = true;
         return true;
+      }).map(function(s) {
+        var c = {};
+        for (var k in s)
+          c[k] = s[k];
+        c.url = normalizeUrl(s.url);
+        return c;
       });
       var results = new Array(unique.length);
       var next = 0;
@@ -724,15 +736,34 @@ var require_validate = __commonJS({
         return streams;
       });
     }
-    module2.exports = { validateStreams: validateStreams2 };
+    function dropWrongYear2(streams, tmdbId, mediaType) {
+      if (mediaType !== "movie" || !Array.isArray(streams) || streams.length === 0)
+        return Promise.resolve(streams);
+      return fetch("https://api.themoviedb.org/3/movie/" + tmdbId + "?api_key=439c478a771f35c05022f9feabcca01c").then(function(r) {
+        return r.json();
+      }).then(function(d) {
+        var year = parseInt(String(d.release_date || "").slice(0, 4), 10);
+        if (!year)
+          return streams;
+        return streams.filter(function(st) {
+          var m = String(st.title || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?:[^0-9]|$)/);
+          return !m || Math.abs(parseInt(m[1], 10) - year) <= 1;
+        });
+      }).catch(function() {
+        return streams;
+      });
+    }
+    module2.exports = { validateStreams: validateStreams2, dropWrongYear: dropWrongYear2 };
   }
 });
 
 // src/castle/index.js
 var { getStreams: scrape } = require_core();
-var { validateStreams } = require_validate();
+var { validateStreams, dropWrongYear } = require_validate();
 function getStreams(tmdbId, mediaType, season, episode) {
   return Promise.resolve(scrape(tmdbId, mediaType, season, episode)).then(function(streams) {
+    return dropWrongYear(streams, tmdbId, mediaType);
+  }).then(function(streams) {
     return validateStreams(streams);
   });
 }

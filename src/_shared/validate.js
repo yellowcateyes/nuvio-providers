@@ -32,6 +32,12 @@ function resolveUrl(ref, base) {
     return m[1] + m[2].replace(/[^\/]*$/, '') + ref;
 }
 
+// Hosts often hand back raw spaces/brackets in file names. Browsers' fetch fixes those silently
+// but ffmpeg, curl and some native players don't, so encode them once here (existing %XX stay).
+function normalizeUrl(url) {
+    return String(url).replace(/[^\x21-\x7E]|[ "<>\\^`{|}\[\]]/g, function (c) { return encodeURIComponent(c); });
+}
+
 function qualityFromWidth(width) {
     if (width >= 3800) return '2160p';
     if (width >= 1900) return '1080p';
@@ -151,9 +157,15 @@ function validateStreams(streams, options) {
     var seen = {};
     var unique = streams.filter(function (s) {
         if (!s || typeof s.url !== 'string' || !/^https?:\/\//i.test(s.url)) return false;
-        if (seen[s.url]) return false;
-        seen[s.url] = true;
+        var key = normalizeUrl(s.url);
+        if (seen[key]) return false;
+        seen[key] = true;
         return true;
+    }).map(function (s) {
+        var c = {};
+        for (var k in s) c[k] = s[k];
+        c.url = normalizeUrl(s.url);
+        return c;
     });
     var results = new Array(unique.length);
     var next = 0;
@@ -192,4 +204,24 @@ function validateStreams(streams, options) {
         .catch(function () { return streams; });
 }
 
-module.exports = { validateStreams };
+/**
+ * Movie sequels/remakes often share a search result list ("The Matrix" -> "The Matrix Revolutions 2003").
+ * Drop streams whose own title names a release year that is not the requested film's year.
+ * Needs TMDB; if the lookup fails the streams are returned unchanged.
+ */
+function dropWrongYear(streams, tmdbId, mediaType) {
+    if (mediaType !== 'movie' || !Array.isArray(streams) || streams.length === 0) return Promise.resolve(streams);
+    return fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=439c478a771f35c05022f9feabcca01c')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            var year = parseInt(String(d.release_date || '').slice(0, 4), 10);
+            if (!year) return streams;
+            return streams.filter(function (st) {
+                var m = String(st.title || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:[^0-9]|$)/);
+                return !m || Math.abs(parseInt(m[1], 10) - year) <= 1;
+            });
+        })
+        .catch(function () { return streams; });
+}
+
+module.exports = { validateStreams, dropWrongYear };

@@ -642,16 +642,28 @@ function searchContent(title, year, mediaType) {
     return makeHTTPRequest(searchUrl)
         .then(response => response.text())
         .then(html => {
-            const moviePageRegex = /<a href="([^"]+)"[^>]*>\s*<p class="home">/g;
+            // When nothing matches, the site shows "No results found" and then lists its latest
+            // uploads. Those are unrelated titles, so treat that page as empty.
+            if (/No results found/i.test(html)) {
+                console.log(`[DVDPlay] Site reports no results for "${searchQuery}"`);
+                return [];
+            }
+
+            const entryRegex = /<a href="([^"]+)"[^>]*>\s*<p class="home">([\s\S]*?)<\/p>/g;
+            const wanted = normalizeTitle(title);
             const results = [];
             let match;
 
-            while ((match = moviePageRegex.exec(html)) !== null) {
+            while ((match = entryRegex.exec(html)) !== null) {
+                const text = match[2].replace(/<span[\s\S]*?<\/span>/g, ' ').replace(/<[^>]+>/g, ' ')
+                    .replace(/&amp;/g, '&').replace(/[»]/g, ' ').replace(/\s+/g, ' ').trim();
+                const yearMatch = text.match(/\((\d{4})\)/);
+                const entryTitle = text.replace(/\(\d{4}\)/, '').trim();
+                // Only keep entries that are really this title (and year, when both are known)
+                if (normalizeTitle(entryTitle) !== wanted) continue;
+                if (year && yearMatch && Math.abs(parseInt(yearMatch[1], 10) - parseInt(year, 10)) > 1) continue;
                 const movieUrl = new URL(match[1], BASE_URL).href;
-                results.push({
-                    title: title, // We'll extract the actual title later
-                    url: movieUrl
-                });
+                results.push({ title: entryTitle, url: movieUrl });
             }
 
             console.log(`[DVDPlay] Found ${results.length} search results`);

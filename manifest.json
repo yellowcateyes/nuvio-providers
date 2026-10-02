@@ -456,7 +456,7 @@
         "tv"
       ],
       "filename": "providers/hdhub4u.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mkv",
         "mp4"
@@ -649,7 +649,7 @@
         "tv"
       ],
       "filename": "providers/vidrock.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "m3u8"
       ],
