@@ -36,7 +36,7 @@ const TITLES = {
 const ANIME = { movie: [['372058', 'movie'], ['129', 'movie']], tv: [['85937', 'tv', 1, 1], ['95479', 'tv', 1, 1]] };
 const KDRAMA = { movie: [], tv: [['93405', 'tv', 1, 1], ['197067', 'tv', 1, 1]] };
 const TITLES_BY_PROVIDER = {
-    animeheaven: ANIME, reanime: ANIME, animepahe: ANIME, hianime: ANIME, anizone: ANIME, animekai: ANIME, 'vidnest-anime': ANIME,
+    animeheaven: ANIME, kisskh: KDRAMA, reanime: ANIME, animepahe: ANIME, hianime: ANIME, anizone: ANIME, animekai: ANIME, 'vidnest-anime': ANIME,
 };
 const GET_STREAMS_TIMEOUT = 60000;
 const MAX_STREAMS_CHECKED = 12;

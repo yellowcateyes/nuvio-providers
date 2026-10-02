@@ -608,6 +608,27 @@
         "en",
         "ja"
       ]
+    },
+    {
+      "id": "kisskh",
+      "name": "KissKH",
+      "description": "KissKH Korean and Asian dramas (HLS, English subtitles)",
+      "version": "1.0.0",
+      "author": "Nuvio Team",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/kisskh.js",
+      "enabled": true,
+      "formats": [
+        "m3u8"
+      ],
+      "logo": "https://www.google.com/s2/favicons?domain=kisskh.do&sz=128",
+      "contentLanguage": [
+        "en",
+        "ko"
+      ]
     }
   ]
 }
