@@ -25,6 +25,7 @@ const MANIFEST = path.join(ROOT, 'manifest.json');
 const args = process.argv.slice(2);
 const WRITE = args.includes('--write');
 const ALL = args.includes('--all');
+const VERBOSE = args.includes('--verbose');
 const only = args.filter(a => !a.startsWith('--'));
 
 const TITLES = {
@@ -32,7 +33,8 @@ const TITLES = {
     tv: [['1396', 'tv', 1, 1], ['1429', 'tv', 1, 1]],
 };
 const GET_STREAMS_TIMEOUT = 60000;
-const MAX_STREAMS_CHECKED = 6;
+const MAX_STREAMS_CHECKED = 12;
+const SLOW_MS = 20000; // a provider slower than this feels broken in the app
 const UA = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36';
 
 // ---------- sandboxed provider loading ----------
@@ -120,16 +122,18 @@ async function checkStream(st) {
 async function runTitle(getStreams, spec) {
     const [id, type, s, e] = spec;
     let streams;
+    const t0 = Date.now();
     try {
         streams = await Promise.race([
             getStreams(id, type, s, e),
             new Promise((_, rej) => setTimeout(() => rej(new Error('getStreams timed out')), GET_STREAMS_TIMEOUT)),
         ]);
-    } catch (err) { return { spec, error: err.message, streams: 0, checked: [] }; }
-    if (!Array.isArray(streams)) return { spec, error: 'getStreams did not return an array', streams: 0, checked: [] };
+    } catch (err) { return { spec, error: err.message, streams: 0, checked: [], ms: Date.now() - t0 }; }
+    const ms = Date.now() - t0;
+    if (!Array.isArray(streams)) return { spec, error: 'getStreams did not return an array', streams: 0, checked: [], ms };
     // check a spread of qualities rather than just the first few
     const checked = await Promise.all(streams.slice(0, MAX_STREAMS_CHECKED).map(checkStream));
-    return { spec, streams: streams.length, checked };
+    return { spec, streams: streams.length, checked, ms, qualities: streams.map(x => x.quality) };
 }
 
 (async () => {
@@ -157,14 +161,22 @@ async function runTitle(getStreams, spec) {
             const tot = rs.reduce((n, r) => n + r.checked.length, 0);
             return `${t} ${okc}/${tot}`;
         }).join('  ');
-        console.log(`${out.playable ? '✓' : '✗'} ${sc.id.padEnd(14)} playable/checked: ${typeLine}`);
+        const totalChecked = out.results.reduce((n, r) => n + r.checked.length, 0);
+        const slowest = Math.max(0, ...out.results.map(r => r.ms || 0));
+        out.dead = totalChecked - out.playable;
+        out.slow = slowest > SLOW_MS;
+        const flag = !out.playable ? '✗' : (out.dead || out.slow) ? '~' : '✓';
+        console.log(`${flag} ${sc.id.padEnd(14)} playable/returned: ${typeLine}   slowest getStreams: ${(slowest / 1000).toFixed(1)}s${out.dead ? '   (' + out.dead + ' dead links returned)' : ''}${out.slow ? '   SLOW' : ''}`);
         out.results.forEach(r => {
             if (r.error) console.log(`    ${r.type} ${r.spec[0]}: ${r.error}`);
-            r.checked.forEach(c => console.log(`    ${c.ok ? 'ok ' : 'bad'} ${String(c.label).padEnd(9)} ${c.why}${c.info ? ' [' + c.info + ']' : ''}  ${c.url.slice(0, 60)}`));
+            else console.log(`    ${r.type} ${r.spec[0]}: ${r.streams} streams in ${(r.ms / 1000).toFixed(1)}s [${(r.qualities || []).join(',')}]`);
+            r.checked.forEach(c => { if (!c.ok || VERBOSE) console.log(`      ${c.ok ? 'ok ' : 'bad'} ${String(c.label).padEnd(9)} ${c.why}${c.info ? ' [' + c.info + ']' : ''}  ${c.url.slice(0, 60)}`); });
         });
     }
     const bad = verdicts.filter(v => !v.playable);
+    const leaky = verdicts.filter(v => v.playable && (v.dead || v.slow));
     console.log(`\n${verdicts.length - bad.length}/${verdicts.length} providers returned at least one playable stream`);
+    if (leaky.length) console.log('Returned dead links or too slow (~): ' + leaky.map(v => v.id).join(', '));
     if (bad.length) console.log('No playable stream: ' + bad.map(v => v.id).join(', '));
     if (WRITE && bad.length) {
         const ids = new Set(bad.map(v => v.id));

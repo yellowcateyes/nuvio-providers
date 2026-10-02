@@ -1,6 +1,6 @@
 /**
  * hdhub4u - Built from src/hdhub4u/
- * Generated: 2026-06-01T14:20:20.743Z
+ * Generated: 2026-10-02T21:00:18.048Z
  */
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -25,6 +25,12 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -62,27 +68,28 @@ var __async = (__this, __arguments, generator) => {
   });
 };
 
-// src/hdhub4u/index.js
-var import_cheerio_without_node_native2 = __toESM(require("cheerio-without-node-native"));
-
 // src/hdhub4u/constants.js
-var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
-var TMDB_BASE_URL = "https://api.themoviedb.org/3";
-var MAIN_URL = "https://new6.hdhub4u.fo";
-var DOMAINS_URL = "https://raw.githubusercontent.com/phisher98/TVVVV/refs/heads/main/domains.json";
-var DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1e3;
-var HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
-  "Cookie": "xla=s4t",
-  "Referer": `${MAIN_URL}/`
-};
 function updateMainUrl(url) {
   MAIN_URL = url;
   HEADERS.Referer = `${url}/`;
 }
+var TMDB_API_KEY, TMDB_BASE_URL, MAIN_URL, DOMAINS_URL, DOMAIN_CACHE_TTL, HEADERS;
+var init_constants = __esm({
+  "src/hdhub4u/constants.js"() {
+    TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
+    TMDB_BASE_URL = "https://api.themoviedb.org/3";
+    MAIN_URL = "https://new6.hdhub4u.fo";
+    DOMAINS_URL = "https://raw.githubusercontent.com/phisher98/TVVVV/refs/heads/main/domains.json";
+    DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1e3;
+    HEADERS = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+      "Cookie": "xla=s4t",
+      "Referer": `${MAIN_URL}/`
+    };
+  }
+});
 
 // src/hdhub4u/utils.js
-var domainCacheTimestamp = 0;
 function formatBytes(bytes) {
   if (!bytes || bytes === 0)
     return "Unknown";
@@ -115,7 +122,6 @@ function rot13(value) {
     return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26);
   });
 }
-var BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 function atob(value) {
   if (!value)
     return "";
@@ -286,10 +292,16 @@ function getTMDBDetails(tmdbId, mediaType) {
     return { title, year, imdbId: ((_a = data.external_ids) == null ? void 0 : _a.imdb_id) || null };
   });
 }
+var domainCacheTimestamp, BASE64_CHARS;
+var init_utils = __esm({
+  "src/hdhub4u/utils.js"() {
+    init_constants();
+    domainCacheTimestamp = 0;
+    BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  }
+});
 
 // src/hdhub4u/extractors.js
-var import_cheerio_without_node_native = __toESM(require("cheerio-without-node-native"));
-var import_crypto_js = __toESM(require("crypto-js"));
 function getRedirectLinks(url) {
   return __async(this, null, function* () {
     try {
@@ -641,206 +653,458 @@ function loadExtractor(_0) {
     }
   });
 }
+var import_cheerio_without_node_native, import_crypto_js;
+var init_extractors = __esm({
+  "src/hdhub4u/extractors.js"() {
+    import_cheerio_without_node_native = __toESM(require("cheerio-without-node-native"));
+    import_crypto_js = __toESM(require("crypto-js"));
+    init_constants();
+    init_utils();
+  }
+});
 
-// src/hdhub4u/index.js
-function search(query) {
-  return __async(this, null, function* () {
-    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const searchUrl = `https://search.hdhub4u.glass/collections/post/documents/search?q=${encodeURIComponent(query)}&query_by=post_title,category&query_by_weights=4,2&sort_by=sort_by_date:desc&limit=15&highlight_fields=none&use_cache=true&page=1&analytics_tag=${today}`;
-    const response = yield fetch(searchUrl, { headers: HEADERS });
-    const data = yield response.json();
-    if (!data || !data.hits)
-      return [];
-    return data.hits.map((hit) => {
-      const doc = hit.document;
-      const title = doc.post_title;
-      const yearMatch = title.match(/\((\d{4})\)|\b(\d{4})\b/);
-      const year = yearMatch ? parseInt(yearMatch[1] || yearMatch[2]) : null;
-      let url = doc.permalink;
-      if (url && url.startsWith("/")) {
-        url = `${MAIN_URL}${url}`;
-      }
-      return {
-        title,
-        url,
-        poster: doc.post_thumbnail,
-        year
-      };
-    });
-  });
-}
-function getDownloadLinks(mediaUrl) {
-  return __async(this, null, function* () {
-    const domain = yield getCurrentDomain();
-    if (mediaUrl.includes("hdhub4u.")) {
-      try {
-        const urlObj = new URL(mediaUrl);
-        const domainObj = new URL(domain);
-        urlObj.hostname = domainObj.hostname;
-        mediaUrl = urlObj.toString();
-      } catch (e) {
-      }
-    }
-    const response = yield fetch(mediaUrl, { headers: __spreadProps(__spreadValues({}, HEADERS), { Referer: `${domain}/` }) });
-    const data = yield response.text();
-    const $ = import_cheerio_without_node_native2.default.load(data);
-    const typeRaw = $("h1.page-title span").text();
-    const isMovie = typeRaw.toLowerCase().includes("movie");
-    if (isMovie) {
-      const qualityLinks = $("h3 a, h4 a").filter((i, el) => $(el).text().match(/480|720|1080|2160|4K/i));
-      const bodyLinks = $(".page-body > div a").filter((i, el) => {
-        const href = $(el).attr("href");
-        return href && (href.includes("hdstream4u") || href.includes("hubstream"));
-      });
-      const initialLinks = [.../* @__PURE__ */ new Set([
-        ...qualityLinks.map((i, el) => $(el).attr("href")).get(),
-        ...bodyLinks.map((i, el) => $(el).attr("href")).get()
-      ])];
-      const results = yield Promise.all(initialLinks.map((url) => loadExtractor(url, mediaUrl)));
-      const allFinalLinks = results.flat();
-      const seenUrls = /* @__PURE__ */ new Set();
-      const uniqueFinalLinks = allFinalLinks.filter((link) => {
-        var _a;
-        if (!link.url || link.url.includes(".zip") || ((_a = link.name) == null ? void 0 : _a.toLowerCase().includes(".zip")))
-          return false;
-        if (seenUrls.has(link.url))
-          return false;
-        seenUrls.add(link.url);
-        return true;
-      });
-      return { finalLinks: uniqueFinalLinks, isMovie };
-    } else {
-      const episodeLinksMap = /* @__PURE__ */ new Map();
-      const directLinkBlocks = [];
-      $("h3, h4").each((i, element) => {
-        const $el = $(element);
-        const text = $el.text();
-        const anchors = $el.find("a");
-        const links = anchors.map((i2, a) => $(a).attr("href")).get();
-        const isDirectLinkBlock = anchors.get().some((a) => $(a).text().match(/1080|720|4K|2160/i));
-        if (isDirectLinkBlock) {
-          directLinkBlocks.push(...links);
-          return;
-        }
-        const episodeMatch = text.match(/(?:EPiSODE\s*(\d+)|E(\d+))/i);
-        if (episodeMatch) {
-          const epNum = parseInt(episodeMatch[1] || episodeMatch[2]);
-          if (!episodeLinksMap.has(epNum))
-            episodeLinksMap.set(epNum, []);
-          episodeLinksMap.get(epNum).push(...links);
-          let nextElement = $el.next();
-          while (nextElement.length && nextElement.get(0).tagName !== "hr") {
-            const siblingLinks = nextElement.find("a[href]").map((i2, a) => $(a).attr("href")).get();
-            episodeLinksMap.get(epNum).push(...siblingLinks);
-            nextElement = nextElement.next();
+// src/hdhub4u/core.js
+var require_core = __commonJS({
+  "src/hdhub4u/core.js"(exports2, module2) {
+    var import_cheerio_without_node_native2 = __toESM(require("cheerio-without-node-native"));
+    init_constants();
+    init_utils();
+    init_extractors();
+    function search(query) {
+      return __async(this, null, function* () {
+        const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const searchUrl = `https://search.hdhub4u.glass/collections/post/documents/search?q=${encodeURIComponent(query)}&query_by=post_title,category&query_by_weights=4,2&sort_by=sort_by_date:desc&limit=15&highlight_fields=none&use_cache=true&page=1&analytics_tag=${today}`;
+        const response = yield fetch(searchUrl, { headers: HEADERS });
+        const data = yield response.json();
+        if (!data || !data.hits)
+          return [];
+        return data.hits.map((hit) => {
+          const doc = hit.document;
+          const title = doc.post_title;
+          const yearMatch = title.match(/\((\d{4})\)|\b(\d{4})\b/);
+          const year = yearMatch ? parseInt(yearMatch[1] || yearMatch[2]) : null;
+          let url = doc.permalink;
+          if (url && url.startsWith("/")) {
+            url = `${MAIN_URL}${url}`;
           }
-        }
+          return {
+            title,
+            url,
+            poster: doc.post_thumbnail,
+            year
+          };
+        });
       });
-      if (directLinkBlocks.length > 0) {
-        yield Promise.all(directLinkBlocks.map((blockUrl) => __async(this, null, function* () {
+    }
+    function getDownloadLinks(mediaUrl) {
+      return __async(this, null, function* () {
+        const domain = yield getCurrentDomain();
+        if (mediaUrl.includes("hdhub4u.")) {
           try {
-            const resolvedUrl = yield getRedirectLinks(blockUrl);
-            if (!resolvedUrl)
-              return;
-            const blockRes = yield fetch(resolvedUrl, { headers: HEADERS });
-            const blockData = yield blockRes.text();
-            const $$ = import_cheerio_without_node_native2.default.load(blockData);
-            $$("h5 a, h4 a, h3 a").each((i, el) => {
-              const linkText = $$(el).text();
-              const linkHref = $$(el).attr("href");
-              const epMatch = linkText.match(/Episode\s*(\d+)/i);
-              if (epMatch && linkHref) {
-                const epNum = parseInt(epMatch[1]);
-                if (!episodeLinksMap.has(epNum))
-                  episodeLinksMap.set(epNum, []);
-                episodeLinksMap.get(epNum).push(linkHref);
-              }
-            });
+            const urlObj = new URL(mediaUrl);
+            const domainObj = new URL(domain);
+            urlObj.hostname = domainObj.hostname;
+            mediaUrl = urlObj.toString();
           } catch (e) {
           }
-        })));
-      }
-      const initialLinks = [];
-      episodeLinksMap.forEach((links, epNum) => {
-        const uniqueLinks = [...new Set(links)];
-        initialLinks.push(...uniqueLinks.map((link) => ({ url: link, episode: epNum })));
+        }
+        const response = yield fetch(mediaUrl, { headers: __spreadProps(__spreadValues({}, HEADERS), { Referer: `${domain}/` }) });
+        const data = yield response.text();
+        const $ = import_cheerio_without_node_native2.default.load(data);
+        const typeRaw = $("h1.page-title span").text();
+        const isMovie = typeRaw.toLowerCase().includes("movie");
+        if (isMovie) {
+          const qualityLinks = $("h3 a, h4 a").filter((i, el) => $(el).text().match(/480|720|1080|2160|4K/i));
+          const bodyLinks = $(".page-body > div a").filter((i, el) => {
+            const href = $(el).attr("href");
+            return href && (href.includes("hdstream4u") || href.includes("hubstream"));
+          });
+          const initialLinks = [.../* @__PURE__ */ new Set([
+            ...qualityLinks.map((i, el) => $(el).attr("href")).get(),
+            ...bodyLinks.map((i, el) => $(el).attr("href")).get()
+          ])];
+          const results = yield Promise.all(initialLinks.map((url) => loadExtractor(url, mediaUrl)));
+          const allFinalLinks = results.flat();
+          const seenUrls = /* @__PURE__ */ new Set();
+          const uniqueFinalLinks = allFinalLinks.filter((link) => {
+            var _a;
+            if (!link.url || link.url.includes(".zip") || ((_a = link.name) == null ? void 0 : _a.toLowerCase().includes(".zip")))
+              return false;
+            if (seenUrls.has(link.url))
+              return false;
+            seenUrls.add(link.url);
+            return true;
+          });
+          return { finalLinks: uniqueFinalLinks, isMovie };
+        } else {
+          const episodeLinksMap = /* @__PURE__ */ new Map();
+          const directLinkBlocks = [];
+          $("h3, h4").each((i, element) => {
+            const $el = $(element);
+            const text = $el.text();
+            const anchors = $el.find("a");
+            const links = anchors.map((i2, a) => $(a).attr("href")).get();
+            const isDirectLinkBlock = anchors.get().some((a) => $(a).text().match(/1080|720|4K|2160/i));
+            if (isDirectLinkBlock) {
+              directLinkBlocks.push(...links);
+              return;
+            }
+            const episodeMatch = text.match(/(?:EPiSODE\s*(\d+)|E(\d+))/i);
+            if (episodeMatch) {
+              const epNum = parseInt(episodeMatch[1] || episodeMatch[2]);
+              if (!episodeLinksMap.has(epNum))
+                episodeLinksMap.set(epNum, []);
+              episodeLinksMap.get(epNum).push(...links);
+              let nextElement = $el.next();
+              while (nextElement.length && nextElement.get(0).tagName !== "hr") {
+                const siblingLinks = nextElement.find("a[href]").map((i2, a) => $(a).attr("href")).get();
+                episodeLinksMap.get(epNum).push(...siblingLinks);
+                nextElement = nextElement.next();
+              }
+            }
+          });
+          if (directLinkBlocks.length > 0) {
+            yield Promise.all(directLinkBlocks.map((blockUrl) => __async(this, null, function* () {
+              try {
+                const resolvedUrl = yield getRedirectLinks(blockUrl);
+                if (!resolvedUrl)
+                  return;
+                const blockRes = yield fetch(resolvedUrl, { headers: HEADERS });
+                const blockData = yield blockRes.text();
+                const $$ = import_cheerio_without_node_native2.default.load(blockData);
+                $$("h5 a, h4 a, h3 a").each((i, el) => {
+                  const linkText = $$(el).text();
+                  const linkHref = $$(el).attr("href");
+                  const epMatch = linkText.match(/Episode\s*(\d+)/i);
+                  if (epMatch && linkHref) {
+                    const epNum = parseInt(epMatch[1]);
+                    if (!episodeLinksMap.has(epNum))
+                      episodeLinksMap.set(epNum, []);
+                    episodeLinksMap.get(epNum).push(linkHref);
+                  }
+                });
+              } catch (e) {
+              }
+            })));
+          }
+          const initialLinks = [];
+          episodeLinksMap.forEach((links, epNum) => {
+            const uniqueLinks = [...new Set(links)];
+            initialLinks.push(...uniqueLinks.map((link) => ({ url: link, episode: epNum })));
+          });
+          const results = yield Promise.all(initialLinks.map((linkInfo) => __async(this, null, function* () {
+            try {
+              const extracted = yield loadExtractor(linkInfo.url, mediaUrl);
+              return extracted.map((ext) => __spreadProps(__spreadValues({}, ext), { episode: linkInfo.episode }));
+            } catch (e) {
+              return [];
+            }
+          })));
+          const allFinalLinks = results.flat();
+          const seenUrls = /* @__PURE__ */ new Set();
+          const uniqueFinalLinks = allFinalLinks.filter((link) => {
+            if (!link.url || link.url.includes(".zip"))
+              return false;
+            if (seenUrls.has(link.url))
+              return false;
+            seenUrls.add(link.url);
+            return true;
+          });
+          return { finalLinks: uniqueFinalLinks, isMovie };
+        }
       });
-      const results = yield Promise.all(initialLinks.map((linkInfo) => __async(this, null, function* () {
+    }
+    function getStreams2(tmdbId, mediaType = "movie", season = null, episode = null) {
+      return __async(this, null, function* () {
+        console.log(`[HDHub4u] Fetching streams for TMDB ID: ${tmdbId}, Type: ${mediaType}`);
         try {
-          const extracted = yield loadExtractor(linkInfo.url, mediaUrl);
-          return extracted.map((ext) => __spreadProps(__spreadValues({}, ext), { episode: linkInfo.episode }));
-        } catch (e) {
+          const mediaInfo = yield getTMDBDetails(tmdbId, mediaType);
+          console.log(`[HDHub4u] TMDB Info: "${mediaInfo.title}" (${mediaInfo.year || "N/A"})`);
+          const searchQuery = mediaType === "tv" && season ? `${mediaInfo.title} Season ${season}` : mediaInfo.title;
+          const searchResults = yield search(searchQuery);
+          if (searchResults.length === 0)
+            return [];
+          const bestMatch = findBestTitleMatch(mediaInfo, searchResults, mediaType, season);
+          const selectedMedia = bestMatch || searchResults[0];
+          console.log(`[HDHub4u] Selected: "${selectedMedia.title}" (${selectedMedia.url})`);
+          const result = yield getDownloadLinks(selectedMedia.url);
+          const finalLinks = result.finalLinks;
+          let filteredLinks = finalLinks;
+          if (mediaType === "tv" && episode !== null) {
+            filteredLinks = finalLinks.filter((link) => link.episode === episode);
+          }
+          const streams = filteredLinks.map((link) => {
+            let mediaTitle = link.fileName && link.fileName !== "Unknown" ? link.fileName : mediaInfo.title;
+            if (mediaType === "tv" && season && episode) {
+              mediaTitle = `${mediaInfo.title} S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+            }
+            const serverName = extractServerName(link.source);
+            let qualityStr = "Unknown";
+            if (typeof link.quality === "number" && link.quality > 0) {
+              if (link.quality >= 2160)
+                qualityStr = "4K";
+              else if (link.quality >= 1080)
+                qualityStr = "1080p";
+              else if (link.quality >= 720)
+                qualityStr = "720p";
+              else if (link.quality >= 480)
+                qualityStr = "480p";
+            } else if (typeof link.quality === "string") {
+              qualityStr = link.quality;
+            }
+            return {
+              name: `HDHub4u ${serverName}`,
+              title: mediaTitle,
+              url: link.url,
+              quality: qualityStr,
+              size: formatBytes(link.size),
+              headers: link.headers || void 0,
+              provider: "hdhub4u"
+            };
+          });
+          const qualityOrder = { "4K": 4, "1080p": 2, "720p": 1, "480p": 0, "Unknown": -2 };
+          return streams.sort((a, b) => (qualityOrder[b.quality] || -3) - (qualityOrder[a.quality] || -3));
+        } catch (error) {
+          console.error(`[HDHub4u] Scraping error: ${error.message}`);
           return [];
         }
-      })));
-      const allFinalLinks = results.flat();
-      const seenUrls = /* @__PURE__ */ new Set();
-      const uniqueFinalLinks = allFinalLinks.filter((link) => {
-        if (!link.url || link.url.includes(".zip"))
+      });
+    }
+    module2.exports = { getStreams: getStreams2 };
+  }
+});
+
+// src/_shared/validate.js
+var require_validate = __commonJS({
+  "src/_shared/validate.js"(exports2, module2) {
+    var CHECK_TIMEOUT_MS = 7e3;
+    var OVERALL_TIMEOUT_MS = 15e3;
+    var CONCURRENCY = 10;
+    var DEFAULT_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36";
+    function withTimeout(promise, ms, label) {
+      return new Promise(function(resolve, reject) {
+        var timer = setTimeout(function() {
+          reject(new Error(label + " timed out"));
+        }, ms);
+        promise.then(function(v) {
+          clearTimeout(timer);
+          resolve(v);
+        }, function(e) {
+          clearTimeout(timer);
+          reject(e);
+        });
+      });
+    }
+    function resolveUrl(ref, base) {
+      if (/^https?:\/\//i.test(ref))
+        return ref;
+      var m = base.match(/^(https?:\/\/[^\/?#]+)([^?#]*)/i);
+      if (!m)
+        return ref;
+      if (ref.indexOf("//") === 0)
+        return base.split(":")[0] + ":" + ref;
+      if (ref.charAt(0) === "/")
+        return m[1] + ref;
+      return m[1] + m[2].replace(/[^\/]*$/, "") + ref;
+    }
+    function qualityFromWidth(width) {
+      if (width >= 3800)
+        return "2160p";
+      if (width >= 1900)
+        return "1080p";
+      if (width >= 1260)
+        return "720p";
+      if (width >= 840)
+        return "480p";
+      return "360p";
+    }
+    function qualityNumber(q) {
+      var s = String(q || "").toLowerCase();
+      if (/4k|uhd/.test(s))
+        return 2160;
+      var m = s.match(/(\d{3,4})\s*p?/);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    function mergeHeaders(stream, extra) {
+      var h = { "User-Agent": DEFAULT_UA };
+      var own = stream.headers || {};
+      for (var k in own)
+        h[k] = own[k];
+      for (var e in extra || {})
+        h[e] = extra[e];
+      return h;
+    }
+    function probeHls(stream) {
+      var headers = mergeHeaders(stream);
+      return fetch(stream.url, { headers }).then(function(res) {
+        if (!res.ok)
+          throw new Error("playlist HTTP " + res.status);
+        return res.text();
+      }).then(function(text) {
+        if (text.indexOf("#EXTM3U") === -1)
+          throw new Error("not an HLS playlist");
+        var lines = text.split("\n").map(function(l) {
+          return l.trim();
+        });
+        var best = null, bestBw = -1, maxWidth = 0;
+        for (var i = 0; i < lines.length; i++) {
+          var m = lines[i].match(/^#EXT-X-STREAM-INF:(.*)$/);
+          if (!m)
+            continue;
+          var bw = (m[1].match(/BANDWIDTH=(\d+)/) || [0, 0])[1] | 0;
+          var w = (m[1].match(/RESOLUTION=(\d+)x\d+/) || [0, 0])[1] | 0;
+          if (w > maxWidth)
+            maxWidth = w;
+          if (bw > bestBw && lines[i + 1] && lines[i + 1].charAt(0) !== "#") {
+            bestBw = bw;
+            best = lines[i + 1];
+          }
+        }
+        var mediaUrl = stream.url;
+        var mediaPromise = Promise.resolve(text);
+        if (best) {
+          mediaUrl = resolveUrl(best, stream.url);
+          mediaPromise = fetch(mediaUrl, { headers }).then(function(r) {
+            if (!r.ok)
+              throw new Error("variant HTTP " + r.status);
+            return r.text();
+          });
+        }
+        return mediaPromise.then(function(media) {
+          var seg = null;
+          var ml = media.split("\n");
+          for (var j = 0; j < ml.length; j++) {
+            var l = ml[j].trim();
+            if (l && l.charAt(0) !== "#") {
+              seg = l;
+              break;
+            }
+          }
+          if (!seg)
+            throw new Error("playlist has no segments");
+          var segHeaders = mergeHeaders(stream, { Range: "bytes=0-65535" });
+          var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+          var opts = { headers: segHeaders };
+          if (controller)
+            opts.signal = controller.signal;
+          return fetch(resolveUrl(seg, mediaUrl), opts).then(function(r) {
+            if (!(r.status === 200 || r.status === 206))
+              throw new Error("segment HTTP " + r.status);
+            var len = parseInt(r.headers.get("content-length") || "0", 10);
+            if (len && len < 1e3)
+              throw new Error("segment too small");
+            if (controller) {
+              controller.abort();
+              return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+            }
+            return r.arrayBuffer().then(function(buf) {
+              if (buf.byteLength < 1e3)
+                throw new Error("segment too small");
+              return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+            });
+          });
+        });
+      });
+    }
+    function isVideoBytes(buf, contentType) {
+      var b = new Uint8Array(buf);
+      var mp4 = b.length > 8 && b[4] === 102 && b[5] === 116 && b[6] === 121 && b[7] === 112;
+      var mkv = b.length > 4 && b[0] === 26 && b[1] === 69 && b[2] === 223 && b[3] === 163;
+      var ts = b.length > 188 && b[0] === 71 && b[188] === 71;
+      return mp4 || mkv || ts || /^video\//i.test(contentType || "");
+    }
+    function probeDirect(stream) {
+      var headers = mergeHeaders(stream, { Range: "bytes=0-2047" });
+      return fetch(stream.url, { headers }).then(function(res) {
+        if (!(res.status === 200 || res.status === 206))
+          throw new Error("HTTP " + res.status);
+        var ct = res.headers.get("content-type") || "";
+        if (/text\/html|application\/json/i.test(ct))
+          throw new Error("web page, not video");
+        return res.arrayBuffer().then(function(buf) {
+          if (!isVideoBytes(buf, ct))
+            throw new Error("not video data");
+          return { height: null };
+        });
+      });
+    }
+    function probe(stream) {
+      var started = Date.now();
+      var isHls = /\.m3u8(\?|#|$)/i.test(stream.url) || stream.type === "hls";
+      return withTimeout(isHls ? probeHls(stream) : probeDirect(stream), CHECK_TIMEOUT_MS, "check").then(function(r) {
+        return { ok: true, ms: Date.now() - started, quality: r.height };
+      }).catch(function(e) {
+        return { ok: false, ms: Date.now() - started, why: e.message };
+      });
+    }
+    function validateStreams2(streams, options) {
+      options = options || {};
+      if (!Array.isArray(streams) || streams.length === 0)
+        return Promise.resolve(streams || []);
+      var seen = {};
+      var unique = streams.filter(function(s) {
+        if (!s || typeof s.url !== "string" || !/^https?:\/\//i.test(s.url))
           return false;
-        if (seenUrls.has(link.url))
+        if (seen[s.url])
           return false;
-        seenUrls.add(link.url);
+        seen[s.url] = true;
         return true;
       });
-      return { finalLinks: uniqueFinalLinks, isMovie };
-    }
-  });
-}
-function getStreams(tmdbId, mediaType = "movie", season = null, episode = null) {
-  return __async(this, null, function* () {
-    console.log(`[HDHub4u] Fetching streams for TMDB ID: ${tmdbId}, Type: ${mediaType}`);
-    try {
-      const mediaInfo = yield getTMDBDetails(tmdbId, mediaType);
-      console.log(`[HDHub4u] TMDB Info: "${mediaInfo.title}" (${mediaInfo.year || "N/A"})`);
-      const searchQuery = mediaType === "tv" && season ? `${mediaInfo.title} Season ${season}` : mediaInfo.title;
-      const searchResults = yield search(searchQuery);
-      if (searchResults.length === 0)
-        return [];
-      const bestMatch = findBestTitleMatch(mediaInfo, searchResults, mediaType, season);
-      const selectedMedia = bestMatch || searchResults[0];
-      console.log(`[HDHub4u] Selected: "${selectedMedia.title}" (${selectedMedia.url})`);
-      const result = yield getDownloadLinks(selectedMedia.url);
-      const finalLinks = result.finalLinks;
-      let filteredLinks = finalLinks;
-      if (mediaType === "tv" && episode !== null) {
-        filteredLinks = finalLinks.filter((link) => link.episode === episode);
+      var results = new Array(unique.length);
+      var next = 0;
+      var deadline = Date.now() + (options.overallTimeout || OVERALL_TIMEOUT_MS);
+      function worker() {
+        if (next >= unique.length || Date.now() >= deadline)
+          return Promise.resolve();
+        var i = next++;
+        return probe(unique[i]).then(function(r) {
+          results[i] = r;
+          return worker();
+        });
       }
-      const streams = filteredLinks.map((link) => {
-        let mediaTitle = link.fileName && link.fileName !== "Unknown" ? link.fileName : mediaInfo.title;
-        if (mediaType === "tv" && season && episode) {
-          mediaTitle = `${mediaInfo.title} S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+      var workers = [];
+      for (var w = 0; w < Math.min(CONCURRENCY, unique.length); w++)
+        workers.push(worker());
+      return withTimeout(Promise.all(workers), (options.overallTimeout || OVERALL_TIMEOUT_MS) + 2e3, "validation").catch(function() {
+      }).then(function() {
+        var kept = [];
+        for (var i = 0; i < unique.length; i++) {
+          var r = results[i];
+          if (!r || !r.ok)
+            continue;
+          var s = unique[i];
+          var out = {};
+          for (var k in s)
+            out[k] = s[k];
+          if (r.quality && !qualityNumber(s.quality))
+            out.quality = r.quality;
+          out._ms = r.ms;
+          kept.push(out);
         }
-        const serverName = extractServerName(link.source);
-        let qualityStr = "Unknown";
-        if (typeof link.quality === "number" && link.quality > 0) {
-          if (link.quality >= 2160)
-            qualityStr = "4K";
-          else if (link.quality >= 1080)
-            qualityStr = "1080p";
-          else if (link.quality >= 720)
-            qualityStr = "720p";
-          else if (link.quality >= 480)
-            qualityStr = "480p";
-        } else if (typeof link.quality === "string") {
-          qualityStr = link.quality;
-        }
-        return {
-          name: `HDHub4u ${serverName}`,
-          title: mediaTitle,
-          url: link.url,
-          quality: qualityStr,
-          size: formatBytes(link.size),
-          headers: link.headers || void 0,
-          provider: "hdhub4u"
-        };
+        kept.sort(function(a, b) {
+          var qa = qualityNumber(a.quality), qb = qualityNumber(b.quality);
+          if (qa !== qb)
+            return qb - qa;
+          return a._ms - b._ms;
+        });
+        kept.forEach(function(s2) {
+          delete s2._ms;
+        });
+        return kept;
+      }).catch(function() {
+        return streams;
       });
-      const qualityOrder = { "4K": 4, "1080p": 2, "720p": 1, "480p": 0, "Unknown": -2 };
-      return streams.sort((a, b) => (qualityOrder[b.quality] || -3) - (qualityOrder[a.quality] || -3));
-    } catch (error) {
-      console.error(`[HDHub4u] Scraping error: ${error.message}`);
-      return [];
     }
+    module2.exports = { validateStreams: validateStreams2 };
+  }
+});
+
+// src/hdhub4u/index.js
+var { getStreams: scrape } = require_core();
+var { validateStreams } = require_validate();
+function getStreams(tmdbId, mediaType, season, episode) {
+  return Promise.resolve(scrape(tmdbId, mediaType, season, episode)).then(function(streams) {
+    return validateStreams(streams);
   });
 }
 module.exports = { getStreams };

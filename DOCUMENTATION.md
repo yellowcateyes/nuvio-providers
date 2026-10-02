@@ -404,3 +404,11 @@ node test-streamflix.js
 ---
 
 Have fun building!
+
+---
+
+## Stream Validation (`src/_shared/validate.js`)
+
+Providers in this repo wrap their scraper (`src/<id>/core.js`) in a small `index.js` that pipes results through `validateStreams()`. It probes every stream on the user's own network (HLS: playlist + variant + first segment headers; direct files: first bytes must be video), drops dead links, web pages and expired URLs, removes duplicates, and sorts by quality then response time. Users therefore only see links that respond, fastest and best first.
+
+Run `npm run verify` to health-check every enabled provider with sample titles. It reports how many returned streams really play and how long `getStreams` took, and `npm run verify -- --write` disables providers with no playable stream.

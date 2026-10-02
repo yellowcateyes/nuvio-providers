@@ -42,7 +42,7 @@ function getProvidersToBuild() {
     }
 
     return fs.readdirSync(srcDir, { withFileTypes: true })
-        .filter(d => d.isDirectory())
+        .filter(d => d.isDirectory() && !d.name.startsWith('_'))
         .map(d => d.name);
 }
 
@@ -132,7 +132,7 @@ async function main() {
             // Transpile all .js files in providers/ that aren't from src/
             const srcProviders = fs.existsSync(srcDir)
                 ? fs.readdirSync(srcDir, { withFileTypes: true })
-                    .filter(d => d.isDirectory())
+                    .filter(d => d.isDirectory() && !d.name.startsWith('_'))
                     .map(d => d.name + '.js')
                 : [];
 
