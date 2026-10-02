@@ -60,7 +60,7 @@ Nuvio providers operate in a specific environment:
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/tapframe/nuvio-providers.git
+   git clone https://github.com/yellowcateyes/nuvio-providers.git
    cd nuvio-providers
    ```
 
