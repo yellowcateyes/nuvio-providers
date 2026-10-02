@@ -1,6 +1,6 @@
 /**
  * vidrock - Built from src/vidrock/
- * Generated: 2026-10-02T21:12:25.574Z
+ * Generated: 2026-10-02T21:49:03.960Z
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -600,16 +600,32 @@ var require_validate = __commonJS({
         return streams;
       });
     }
-    module2.exports = { validateStreams: validateStreams2, dropWrongYear: dropWrongYear2 };
+    var INDIAN_LANG = /(^|[^a-z])(hindi|hin|tamil|tam|telugu|tel|malayalam|mal|kannada|kan|bengali|punjabi|marathi|bollywood|desi)([^a-z]|$)/i;
+    function dropIndianLanguages2(streams) {
+      if (!Array.isArray(streams))
+        return streams;
+      return streams.filter(function(st) {
+        var text = [st.name, st.title, st.language, st.lang, st.url].map(function(v) {
+          var t = String(v || "");
+          try {
+            t = decodeURIComponent(t);
+          } catch (e) {
+          }
+          return t;
+        }).join(" ");
+        return !INDIAN_LANG.test(text);
+      });
+    }
+    module2.exports = { validateStreams: validateStreams2, dropWrongYear: dropWrongYear2, dropIndianLanguages: dropIndianLanguages2 };
   }
 });
 
 // src/vidrock/index.js
 var { getStreams: scrape } = require_core();
-var { validateStreams, dropWrongYear } = require_validate();
+var { validateStreams, dropWrongYear, dropIndianLanguages } = require_validate();
 function getStreams(tmdbId, mediaType, season, episode) {
   return Promise.resolve(scrape(tmdbId, mediaType, season, episode)).then(function(streams) {
-    return dropWrongYear(streams, tmdbId, mediaType);
+    return dropWrongYear(dropIndianLanguages(streams), tmdbId, mediaType);
   }).then(function(streams) {
     return validateStreams(streams);
   });

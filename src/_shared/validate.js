@@ -224,4 +224,21 @@ function dropWrongYear(streams, tmdbId, mediaType) {
         .catch(function () { return streams; });
 }
 
-module.exports = { validateStreams, dropWrongYear };
+/**
+ * Drop streams that are Hindi or another Indian-language release (dubs, dual-audio rips,
+ * regional uploads), judged from the stream's label, title, language and file name.
+ */
+var INDIAN_LANG = /(^|[^a-z])(hindi|hin|tamil|tam|telugu|tel|malayalam|mal|kannada|kan|bengali|punjabi|marathi|bollywood|desi)([^a-z]|$)/i;
+function dropIndianLanguages(streams) {
+    if (!Array.isArray(streams)) return streams;
+    return streams.filter(function (st) {
+        var text = [st.name, st.title, st.language, st.lang, st.url].map(function (v) {
+            var t = String(v || '');
+            try { t = decodeURIComponent(t); } catch (e) { /* keep raw */ }
+            return t;
+        }).join(' ');
+        return !INDIAN_LANG.test(text);
+    });
+}
+
+module.exports = { validateStreams, dropWrongYear, dropIndianLanguages };
