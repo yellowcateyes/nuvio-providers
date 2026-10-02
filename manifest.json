@@ -657,6 +657,25 @@
       "contentLanguage": [
         "en"
       ]
+    },
+    {
+      "id": "vaplayer",
+      "name": "VAPlayer",
+      "description": "VAPlayer HLS movies (up to 1080p)",
+      "version": "1.0.0",
+      "author": "Nuvio Team",
+      "supportedTypes": [
+        "movie"
+      ],
+      "filename": "providers/vaplayer.js",
+      "enabled": true,
+      "formats": [
+        "m3u8"
+      ],
+      "logo": "https://www.google.com/s2/favicons?domain=vaplayer.ru&sz=128",
+      "contentLanguage": [
+        "en"
+      ]
     }
   ]
 }
