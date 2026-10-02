@@ -54,7 +54,7 @@
         "tv"
       ],
       "filename": "providers/uhdmovies.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mkv"
       ],
@@ -137,7 +137,7 @@
         "tv"
       ],
       "filename": "providers/streamflix.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mkv"
       ],
@@ -522,7 +522,7 @@
         "tv"
       ],
       "filename": "providers/movieblast.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mp4",
         "mkv"
@@ -566,7 +566,7 @@
         "tv"
       ],
       "filename": "providers/moviesdrive.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mkv",
         "mp4"
@@ -609,7 +609,7 @@
         "tv"
       ],
       "filename": "providers/kurage.js",
-      "enabled": true,
+      "enabled": false,
       "formats": [
         "mp4"
       ],
@@ -634,6 +634,26 @@
         "m3u8"
       ],
       "logo": "https://anizone.to/favicon.ico",
+      "contentLanguage": [
+        "en"
+      ]
+    },
+    {
+      "id": "vidrock",
+      "name": "Vidrock",
+      "description": "Vidrock HLS streams (multiple servers, up to 1080p)",
+      "version": "2.0.0",
+      "author": "Nuvio Team",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/vidrock.js",
+      "enabled": true,
+      "formats": [
+        "m3u8"
+      ],
+      "logo": "https://www.google.com/s2/favicons?domain=vidrock.net&sz=128",
       "contentLanguage": [
         "en"
       ]

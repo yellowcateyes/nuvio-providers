@@ -1,6 +1,6 @@
 // Vidrock Scraper for Nuvio Local Scrapers
 // React Native compatible version - Promise-based approach only
-// Extracts streaming links using TMDB ID for Vidrock servers with AES-CBC decryption
+// Extracts streaming links using TMDB ID for Vidrock servers with AES-GCM source decryption
 
 // TMDB API Configuration
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
@@ -8,7 +8,25 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 // Vidrock Configuration
 const VIDROCK_BASE_URL = 'https://vidrock.net';
-const PASSPHRASE = 'x7k9mPqT2rWvY8zA5bC3nF6hJ2lK4mN9';
+// Source URLs in the API response are AES-256-GCM encrypted (iv(12) | ciphertext | tag(16), base64url).
+// GCM encryption is CTR mode starting at counter 2, so crypto-js (provided by the app) can decrypt it.
+const CryptoJS = require('crypto-js');
+const SOURCE_KEY_HEX = '7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f';
+
+function decryptSourceUrl(encrypted) {
+    let b64 = String(encrypted).replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const hex = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Base64.parse(b64));
+    if (hex.length < 56) throw new Error('Ciphertext too short');
+    const iv = hex.slice(0, 24) + '00000002';
+    const ct = hex.slice(24, hex.length - 32); // drop the 16-byte GCM tag
+    const plain = CryptoJS.AES.decrypt(
+        { ciphertext: CryptoJS.enc.Hex.parse(ct) },
+        CryptoJS.enc.Hex.parse(SOURCE_KEY_HEX),
+        { iv: CryptoJS.enc.Hex.parse(iv), mode: CryptoJS.mode.CTR, padding: CryptoJS.pad.NoPadding }
+    );
+    return plain.toString(CryptoJS.enc.Utf8);
+}
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36';
 
 // Working headers for Vidrock API
@@ -237,6 +255,8 @@ function extractQuality(url) {
 
 // Determine if a stream needs headers based on server and URL patterns
 function needsHeaders(serverName, url) {
+    // The stream CDNs reject requests without the vidrock Referer (HTTP 403)
+    return true;
     // Astra server always needs headers (proxy links)
     if (serverName === 'Astra') {
         return true;
@@ -336,7 +356,17 @@ function processVidrockResponse(data, mediaInfo, seasonNum, episodeNum) {
                 return;
             }
             
-            const videoUrl = source.url;
+            let videoUrl;
+            try {
+                videoUrl = decryptSourceUrl(source.url);
+            } catch (e) {
+                console.log(`[Vidrock] ${serverName}: could not decrypt URL (${e.message})`);
+                return;
+            }
+            if (!/^https?:\/\//.test(videoUrl)) {
+                console.log(`[Vidrock] ${serverName}: decrypted value is not a URL`);
+                return;
+            }
             
             // Check if this is Astra server (returns JSON playlist)
             if (serverName === 'Astra' && videoUrl.includes('cdn.vidrock.store/playlist/')) {
@@ -415,31 +445,18 @@ function processVidrockResponse(data, mediaInfo, seasonNum, episodeNum) {
 function fetchFromVidrock(mediaType, tmdbId, mediaInfo, seasonNum, episodeNum) {
     console.log(`[Vidrock] Fetching streams for ${mediaType} ID: ${tmdbId}...`);
     
-    // Build item ID for encryption
+    // Build item ID (the API takes the plain ID; only the returned URLs are encrypted)
     let itemId;
     if (mediaType === 'tv' && seasonNum && episodeNum) {
-        itemId = `${tmdbId}_${seasonNum}_${episodeNum}`;
+        itemId = `${tmdbId}/${seasonNum}/${episodeNum}`;
     } else {
         itemId = tmdbId.toString();
     }
-    
-    console.log(`[Vidrock] Item ID to encrypt: ${itemId}`);
-    
-    // Encrypt the item ID
-    return encryptAesCbc(itemId, PASSPHRASE)
-        .then(function(encryptedId) {
-            console.log(`[Vidrock] Encrypted ID: ${encryptedId.substring(0, 20)}...`);
-            
-            // URL encode the encrypted ID
-            const encodedId = urlEncode(encryptedId);
-            
-            // Build API URL
-            const apiUrl = `${VIDROCK_BASE_URL}/api/${mediaType}/${encodedId}`;
-            console.log(`[Vidrock] API URL: ${apiUrl}`);
-            
-            // Make API request
-            return makeRequest(apiUrl);
-        })
+
+    const apiUrl = `${VIDROCK_BASE_URL}/api/${mediaType}/${itemId}`;
+    console.log(`[Vidrock] API URL: ${apiUrl}`);
+
+    return makeRequest(apiUrl)
         .then(function(response) {
             return response.text();
         })
