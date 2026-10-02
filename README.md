@@ -1,12 +1,10 @@
 # Nuvio Providers
 
-A collection of streaming providers for the Nuvio app. Providers are JavaScript modules that fetch streams from various sources.
+A small, curated set of streaming providers for the [Nuvio](https://github.com/tapframe/NuvioStreaming) app. Every provider here is tested against the real site, and every stream it returns is checked on the user's own network before it reaches the app, so dead links never show up in the list.
 
-📖 **[Read the Comprehensive Developer Guide](DOCUMENTATION.md)**
+📖 Developer guide: [DOCUMENTATION.md](DOCUMENTATION.md)
 
 ## Quick Start
-
-### Using in Nuvio App
 
 1. Open **Nuvio** > **Settings** > **Plugins**
 2. Add this repository URL:
@@ -17,250 +15,156 @@ A collection of streaming providers for the Nuvio app. Providers are JavaScript 
 
 ---
 
-## Project Structure
+## Providers
 
-```
-nuvio-providers/
-├── src/                    # Source files (multi-file development)
-│   ├── vixsrc/
-│   │   ├── index.js        # Main entry point
-│   │   ├── extractor.js    # Stream extraction
-│   │   ├── http.js         # HTTP utilities
-│   │   └── ...
-│   └── uhdmovies/
-│       └── ...
-│
-├── providers/              # Output directory (ready-to-use files)
-│   ├── vixsrc.js           # Bundled from src/vixsrc/
-│   ├── uhdmovies.js
-│   └── ...
-│
-├── manifest.json           # Provider registry
-├── build.js                # Build script
-└── package.json
-```
+| Provider | Content | Quality | Notes |
+|---|---|---|---|
+| **vidfast** | Movies, TV | Up to 2160p (HLS ladder: 2160/1080/720/480) | English subtitles. Needs enc-dec.app. |
+| **vaplayer** | Movies | 1080p HLS | No TV. |
+| **castle** | Movies, TV, K-dramas | 720p | Many subtitle languages, one stream per title. |
+| **anizone** | Anime | 1080p HLS | Japanese + English audio tracks, ASS subtitles. |
+| **animeheaven** | Anime | 720p MP4 | Japanese audio, soft English subtitles. |
+| **kisskh** | K-dramas / Asian dramas | HLS | English subtitles. Needs enc-dec.app. |
+
+Anime providers map TMDB seasons to the site's own entries (arcs, split cours, absolute numbering). When the mapping is not certain they return nothing rather than the wrong episode.
 
 ---
 
-## Development
+## How streams are checked
 
-There are two ways to create providers:
+Providers wrap their scraper (`src/<id>/core.js`) with `src/_shared/validate.js`. Before returning, it:
 
-### Option 1: Single-File Provider
+- probes every stream (HLS: playlist, variant and first segment; direct files: the first bytes must be video)
+- drops dead links, web pages and expired URLs, and removes duplicates
+- fills in the real quality from the playlist when the site does not say
+- sorts best quality first, then fastest to respond
+- drops movie results whose file name names a different release year (sequels), and Indian-language releases
 
-For simple providers, you can create a single JavaScript file directly in the `providers/` directory.
-
-**Important:** The app's JavaScript engine (Hermes) has limitations with `async/await` in dynamic code.
-- **Recommended**: Use Promise chains (`.then()`).
-- **Alternative**: Use `async/await` and run the transpiler command (see below).
-
-**Example (Promise Chains):**
-```javascript
-// providers/myprovider.js
-
-function getStreams(tmdbId, mediaType, season, episode) {
-  console.log(`[MyProvider] Fetching ${mediaType} ${tmdbId}`);
-  
-  return fetch(`https://api.example.com/streams/${tmdbId}`)
-    .then(response => response.json())
-    .then(data => {
-      return data.streams.map(s => ({
-        name: "MyProvider",
-        title: s.title,
-        url: s.url,
-        quality: s.quality
-      }));
-    })
-    .catch(error => {
-      console.error('[MyProvider] Error:', error.message);
-      return [];
-    });
-}
-
-module.exports = { getStreams };
-```
-
-To register the provider, add it to `manifest.json`:
-```json
-{
-  "id": "myprovider",
-  "name": "My Provider",
-  "filename": "providers/myprovider.js",
-  "supportedTypes": ["movie", "tv"],
-  "enabled": true
-}
-```
-
-### Option 2: Multi-File Provider (Recommended)
-
-For complex providers, use the `src/` directory. This allows you to split code into multiple files. The build script automatically handles bundling and `async/await` transpilation.
-
-1. **Create source folder:**
-   ```bash
-   mkdir -p src/myprovider
-   ```
-
-2. **Create entry point** (`src/myprovider/index.js`):
-   ```javascript
-   import { fetchPage } from './http.js';
-   import { extractStreams } from './extractor.js';
-
-   // async/await is fully supported here
-   async function getStreams(tmdbId, mediaType, season, episode) {
-     const page = await fetchPage(tmdbId, mediaType, season, episode);
-     return extractStreams(page);
-   }
-
-   module.exports = { getStreams };
-   ```
-
-3. **Build:**
-   ```bash
-   node build.js myprovider
-   ```
-
-This generates `providers/myprovider.js`.
-
----
-
-## Building
-
-### Build Source Providers
-Bundles files from `src/<provider>/` into `providers/<provider>.js`.
-
-```bash
-# Build specific provider
-node build.js vixsrc
-
-# Build multiple
-node build.js vixsrc uhdmovies
-
-# Build all source providers
-node build.js
-```
-
-### Transpile Single-File Providers
-If you wrote a single-file provider using `async/await`, you must transpile it for compatibility.
-
-```bash
-# Transpile specific file
-node build.js --transpile myprovider.js
-
-# Transpile all applicable files in providers/
-node build.js --transpile
-```
-
-### Watch Mode
-Automatically rebuilds when files change.
-```bash
-npm run build:watch
-```
+It never throws: if validation itself fails, the original list is returned.
 
 ---
 
 ## Testing
 
-Create a test script to identify issues before loading into the app.
-
-```javascript
-// test-myprovider.js
-const { getStreams } = require('./providers/myprovider.js');
-
-async function test() {
-  console.log('Testing...');
-  const streams = await getStreams('872585', 'movie'); // Oppenheimer ID
-  console.log('Streams found:', streams.length);
-}
-
-test();
-```
-
-Run with Node.js:
 ```bash
-node test-myprovider.js
+npm install
+npm run build                       # bundle src/<id>/ into providers/<id>.js
+npm run verify                      # test every enabled provider
+npm run verify -- castle vidfast    # test specific providers
+npm run verify -- --verbose         # also list the streams that passed
+npm run verify -- --write           # disable providers with no playable stream in manifest.json
 ```
+
+`verify` loads each provider in a sandbox that looks like the Nuvio runtime (no Node `Buffer`/`process`, only `fetch` and the modules the app provides), calls `getStreams` for sample titles, and checks that the returned streams really play. It reports how many returned links work and how long `getStreams` took, and flags providers that return dead links or take longer than 20 seconds.
+
+Some networks are blocked by the streaming sites. If a provider fails for you, run the **Verify providers** workflow from the repository's **Actions** tab (optionally listing provider names) to test from GitHub's network instead.
+
+To read real video stats (codec, resolution, bitrate, duration, test decode) with ffprobe/ffmpeg and to catch wrong-title results by comparing runtime and year with TMDB:
+
+```bash
+node scripts/probe-quality.js <provider> <tmdbId> <movie|tv> [season] [episode] [--decode] [--max=N]
+node scripts/probe-quality.js vidfast 872585 movie --decode      # Oppenheimer
+node scripts/probe-quality.js anizone 85937 tv 1 1               # Demon Slayer S1E1
+```
+
+In sandboxes that use an HTTPS proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` uses it.
+
+---
+
+## Project Structure
+
+```
+nuvio-providers/
+├── src/
+│   ├── _shared/validate.js     # Stream validation shared by all providers
+│   ├── vidfast/                # core.js = scraper, index.js = scraper + validation
+│   ├── vaplayer/
+│   ├── castle/
+│   ├── anizone/
+│   ├── animeheaven/
+│   └── kisskh/
+├── providers/                  # Built files the app loads (generated, do not edit)
+├── scripts/
+│   ├── verify.js               # Provider health check
+│   ├── probe-quality.js        # ffprobe-based quality/title check
+│   └── test-kisskh-mock.js     # KissKH logic test against a mocked API
+├── .github/workflows/verify.yml
+├── manifest.json               # Provider registry
+├── build.js                    # Build script
+└── DOCUMENTATION.md
+```
+
+---
+
+## Adding a Provider
+
+1. Create `src/<id>/core.js` that exports `getStreams(tmdbId, mediaType, season, episode)` and returns an array of stream objects (format below).
+2. Create `src/<id>/index.js` that runs the results through the validator:
+   ```javascript
+   const { getStreams: scrape } = require('./core.js');
+   const { validateStreams } = require('../_shared/validate.js');
+
+   function getStreams(tmdbId, mediaType, season, episode) {
+     return Promise.resolve(scrape(tmdbId, mediaType, season, episode)).then(validateStreams);
+   }
+
+   module.exports = { getStreams };
+   ```
+3. Build it: `node build.js <id>` (this writes `providers/<id>.js`).
+4. Register it in `manifest.json`:
+   ```json
+   {
+     "id": "myprovider",
+     "name": "My Provider",
+     "filename": "providers/myprovider.js",
+     "supportedTypes": ["movie", "tv"],
+     "enabled": true
+   }
+   ```
+5. Run `npm run verify -- myprovider` and only keep it if the streams really play.
+
+The app's JavaScript engine (Hermes) is picky about `async/await` in dynamic code. Files under `src/` are bundled and transpiled by `build.js`, so `async/await` is fine there. Single-file providers written directly in `providers/` should use Promise chains, or be transpiled with `node build.js --transpile <file>.js`.
+
+`node build.js` also builds every `src/` folder; folders starting with `_` are skipped. Use `npm run build:watch` to rebuild on changes.
 
 ---
 
 ## Stream Object Format
 
-Providers must return an array of stream objects:
-
 ```javascript
 {
-  name: "Provider Name",           // Provider identifier
-  title: "1080p Stream",           // Stream description
+  name: "Provider Name",           // Provider / server label
+  title: "Movie (2023)",           // Stream description
   url: "https://...",              // Direct stream URL (m3u8, mp4, mkv)
   quality: "1080p",                // Quality label
+  type: "hls",                     // Optional: "hls" when the URL is not obviously .m3u8
   size: "2.5 GB",                  // Optional file size
-  headers: {                       // Optional headers for playback
+  headers: {                       // Optional headers needed for playback
     "Referer": "https://source.com",
     "User-Agent": "Mozilla/5.0..."
-  }
+  },
+  subtitles: [                     // Optional external subtitles (VTT, SRT, ASS, ...)
+    { url: "https://...", language: "en", name: "English" }
+  ]
 }
 ```
 
 ---
 
-## Available Modules
+## Local Development Server
 
-Providers have access to these modules via `require()`:
-
-| Module | Usage |
-|--------|-------|
-| `cheerio-without-node-native` | HTML parsing |
-| `crypto-js` | Encryption/decryption |
-| `axios` | HTTP requests |
-
-Native `fetch` and `console` are also available globally.
-
----
-
-## Manifest Options
-
-The `manifest.json` file controls provider settings.
-
-```json
-{
-  "id": "unique-id",
-  "name": "Display Name",
-  "description": "Short description",
-  "version": "1.0.0",
-  "author": "Your Name",
-  "supportedTypes": ["movie", "tv"],
-  "filename": "providers/file.js",
-  "enabled": true,
-  "logo": "https://url/to/logo.png",
-  "contentLanguage": ["en", "hi"],
-  "formats": ["mkv", "mp4"],
-  "limited": false,
-  "disabledPlatforms": ["ios"],
-  "supportsExternalPlayer": true
-}
+```bash
+npm run serve
 ```
 
----
-
-## Contributing
-
-1. **Fork the repository**
-2. **Create a branch**: `git checkout -b add-myprovider`
-3. **Develop and test**
-4. **Build**: `node build.js myprovider`
-5. **Commit**: `git commit -m "Add MyProvider"`
-6. **Push and PR**
-
----
-
-## License
-
-This project is licensed under the **GNU General Public License v3.0**.
+Starts a local server that serves `manifest.json` and `providers/` so you can add it to Nuvio on your network while developing.
 
 ---
 
 ## Disclaimer
 
-- **No content is hosted by this repository.**
-- Providers fetch publicly available content from third-party websites.
-- Users are responsible for compliance with local laws.
-- For DMCA concerns, contact the actual content hosts.
+These providers only look up publicly reachable streams on third-party sites and do not host any content. Sites change without notice, so a provider that works today can stop working; run `npm run verify` to find out which.
+
+## License
+
+See [LICENSE](LICENSE).
