@@ -586,6 +586,27 @@
       "contentLanguage": [
         "en"
       ]
+    },
+    {
+      "id": "animeheaven",
+      "name": "AnimeHeaven",
+      "description": "AnimeHeaven direct MP4 anime (Japanese audio, English soft subs, 720p)",
+      "version": "1.0.0",
+      "author": "Nuvio Team",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/animeheaven.js",
+      "enabled": true,
+      "formats": [
+        "mp4"
+      ],
+      "logo": "https://www.google.com/s2/favicons?domain=animeheaven.me&sz=128",
+      "contentLanguage": [
+        "en",
+        "ja"
+      ]
     }
   ]
 }

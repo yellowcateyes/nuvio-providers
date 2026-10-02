@@ -32,6 +32,12 @@ const TITLES = {
     movie: [['603', 'movie'], ['27205', 'movie']],
     tv: [['1396', 'tv', 1, 1], ['1429', 'tv', 1, 1]],
 };
+// Providers that only carry certain content are tested with titles they can actually have.
+const ANIME = { movie: [['372058', 'movie'], ['129', 'movie']], tv: [['85937', 'tv', 1, 1], ['95479', 'tv', 1, 1]] };
+const KDRAMA = { movie: [], tv: [['93405', 'tv', 1, 1], ['197067', 'tv', 1, 1]] };
+const TITLES_BY_PROVIDER = {
+    animeheaven: ANIME, reanime: ANIME, animepahe: ANIME, hianime: ANIME, anizone: ANIME, animekai: ANIME, 'vidnest-anime': ANIME,
+};
 const GET_STREAMS_TIMEOUT = 60000;
 const MAX_STREAMS_CHECKED = 12;
 const SLOW_MS = 20000; // a provider slower than this feels broken in the app
@@ -147,7 +153,7 @@ async function runTitle(getStreams, spec) {
         try { getStreams = loadProvider(path.join(ROOT, sc.filename)); }
         catch (e) { out.loadError = e.message; verdicts.push(out); console.log(`✗ ${sc.id}: load error: ${e.message}`); continue; }
         for (const type of types) {
-            for (const spec of TITLES[type] || []) {
+            for (const spec of (TITLES_BY_PROVIDER[sc.id] || TITLES)[type] || []) {
                 const r = await runTitle(getStreams, spec);
                 out.results.push({ type, ...r });
                 out.playable += r.checked.filter(c => c.ok).length;
