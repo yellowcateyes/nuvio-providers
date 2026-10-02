@@ -9,7 +9,7 @@ A small, curated set of streaming providers for the [Nuvio](https://github.com/t
 1. Open **Nuvio** > **Settings** > **Plugins**
 2. Add this repository URL:
    ```
-   https://raw.githubusercontent.com/yellowcateyes/nuvio-providers/refs/heads/main
+   https://raw.githubusercontent.com/yellowcateyes/nuvio-providers/refs/heads/main/manifest.json
    ```
 3. Refresh and enable the providers you want
 
