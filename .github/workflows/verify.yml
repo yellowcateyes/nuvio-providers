@@ -1,0 +1,31 @@
+name: Verify providers
+
+# Manual health check: loads each provider in a Nuvio-like sandbox, calls getStreams for sample
+# titles and checks that the returned streams really play. Run it from the Actions tab and
+# optionally list providers (space separated), e.g. "kisskh castle".
+on:
+  workflow_dispatch:
+    inputs:
+      providers:
+        description: 'Providers to verify (space separated, empty = all enabled)'
+        required: false
+        default: ''
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Is KissKH reachable from this runner?
+        run: |
+          for d in kisskh.do kisskh.co kisskh.id; do
+            printf "%s -> " "$d"
+            curl -sS -m 20 -o /dev/null -w "%{http_code}\n" -A "Mozilla/5.0" "https://$d/api/DramaList/Search?q=squid&type=0" || true
+          done
+      - name: Verify providers
+        run: node scripts/verify.js ${{ inputs.providers }} --verbose
