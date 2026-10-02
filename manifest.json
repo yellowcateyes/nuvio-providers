@@ -511,21 +511,22 @@
     {
       "id": "anizone",
       "name": "AniZone",
-      "description": "AniZone high-quality anime streaming with multi-audio and soft subtitles",
-      "version": "1.0.0",
+      "description": "AniZone 1080p HLS anime (Japanese + English audio tracks, ASS subtitles)",
+      "version": "2.0.0",
       "author": "Nuvio Team",
       "supportedTypes": [
         "movie",
         "tv"
       ],
       "filename": "providers/anizone.js",
-      "enabled": false,
+      "enabled": true,
       "formats": [
         "m3u8"
       ],
       "logo": "https://anizone.to/favicon.ico",
       "contentLanguage": [
-        "en"
+        "en",
+        "ja"
       ]
     },
     {
