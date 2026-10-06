@@ -1,6 +1,6 @@
 /**
  * vidfast - Built from src/vidfast/
- * Generated: 2026-10-02T22:14:33.593Z
+ * Generated: 2026-10-06T05:22:29.069Z
  */
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
@@ -81,42 +81,44 @@ var require_core = __commonJS({
       var path = mediaType === "tv" ? "/tv/" + tmdbId + "/" + (season || 1) + "/" + (episode || 1) : "/movie/" + tmdbId;
       var titlePromise = getTitle(tmdbId, mediaType);
       return request(SITE + path, { headers: { "User-Agent": USER_AGENT } }, "page").then(function(html) {
-        var m = html.match(/\\"en\\":\\"([^\\]+)\\"/);
+        var m = html.match(/\\"(?:en|token)\\":\\"([^\\]+)\\"/);
         if (!m)
           throw new Error("payload not found on page (site layout changed?)");
-        return request(ENC_DEC + "/enc-vidfast?text=" + encodeURIComponent(m[1]), { headers: { "User-Agent": USER_AGENT } }, "enc-vidfast");
-      }).then(function(body) {
-        var enc = JSON.parse(body).result;
-        if (!enc || !enc.servers || !enc.stream)
-          throw new Error("enc-vidfast returned no endpoints");
-        var headers = {
-          "User-Agent": USER_AGENT,
-          "Referer": SITE + "/",
-          "Origin": SITE,
-          "X-Csrf-Token": enc.token || "",
-          "Accept": "*/*"
-        };
-        return request(enc.servers, { method: "POST", headers }, "servers").then(decrypt).then(function(servers) {
-          return titlePromise.then(function(title) {
-            var label = title + (mediaType === "tv" ? " S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
-            return Promise.all((servers || []).map(function(server) {
-              return request(enc.stream + "/" + server.data, { method: "POST", headers }, "stream " + server.name).then(decrypt).then(function(info) {
-                if (!info || !info.url)
+        var base = { "User-Agent": USER_AGENT, "Referer": SITE + "/", "Origin": SITE, "X-Requested-With": "XMLHttpRequest", "Accept": "*/*" };
+        return request(ENC_DEC + "/enc-vidfast?text=" + encodeURIComponent(m[1]) + "&stage=1", { headers: { "User-Agent": USER_AGENT } }, "enc-vidfast stage 1").then(function(body) {
+          var s1 = JSON.parse(body).result;
+          if (!s1 || !s1.stage1)
+            throw new Error("enc-vidfast stage 1 returned no endpoint");
+          return request(s1.stage1, { method: "POST", headers: Object.assign({}, base, { "X-Csrf-Token": s1.token || "" }) }, "stage 1");
+        }).then(function(stage1Text) {
+          return request(ENC_DEC + "/enc-vidfast?text=" + encodeURIComponent(stage1Text) + "&stage=2", { headers: { "User-Agent": USER_AGENT } }, "enc-vidfast stage 2");
+        }).then(function(body) {
+          var enc = JSON.parse(body).result;
+          if (!enc || !enc.servers || !enc.stream)
+            throw new Error("enc-vidfast stage 2 returned no endpoints");
+          var headers = Object.assign({}, base, { "X-Csrf-Token": enc.token || "" });
+          return request(enc.servers, { method: "POST", headers }, "servers").then(decrypt).then(function(servers) {
+            return titlePromise.then(function(title) {
+              var label = title + (mediaType === "tv" ? " S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
+              return Promise.all((servers || []).map(function(server) {
+                return request(enc.stream + "/" + server.data, { method: "POST", headers }, "stream " + server.name).then(decrypt).then(function(info) {
+                  if (!info || !info.url)
+                    return null;
+                  return {
+                    name: "Vidfast " + server.name,
+                    title: label,
+                    url: info.url,
+                    quality: "Auto",
+                    type: /\.m3u8/i.test(info.url) ? "hls" : void 0,
+                    headers: PLAYBACK_HEADERS,
+                    subtitles: englishSubtitles(info.tracks),
+                    provider: "vidfast"
+                  };
+                }).catch(function() {
                   return null;
-                return {
-                  name: "Vidfast " + server.name,
-                  title: label,
-                  url: info.url,
-                  quality: "Auto",
-                  type: /\.m3u8/i.test(info.url) ? "hls" : void 0,
-                  headers: PLAYBACK_HEADERS,
-                  subtitles: englishSubtitles(info.tracks),
-                  provider: "vidfast"
-                };
-              }).catch(function() {
-                return null;
-              });
-            }));
+                });
+              }));
+            });
           });
         });
       }).then(function(streams) {

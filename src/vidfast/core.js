@@ -1,10 +1,11 @@
 // Vidfast provider for Nuvio
 //
 // Flow (all plain HTTPS, no browser needed):
-//   1. vidfast.pro/<type>/<tmdb>  -> the page embeds an opaque "en" payload
-//   2. enc-dec.app/api/enc-vidfast -> turns it into the server/stream endpoints + CSRF token
-//   3. POST <servers>             -> encrypted server list, decrypted with enc-dec.app/api/dec-vidfast
-//   4. POST <stream>/<server>     -> encrypted stream info (HLS master playlist + subtitle tracks)
+//   1. vidfast.pro/<type>/<tmdb>   -> the page embeds an opaque "en" payload
+//   2. enc-dec.app enc-vidfast stage=1 -> URL + CSRF token for the first request; POST it
+//   3. enc-dec.app enc-vidfast stage=2 -> servers/stream endpoints + a new CSRF token
+//   4. POST <servers>              -> encrypted server list, decrypted with enc-dec.app/api/dec-vidfast
+//   5. POST <stream>/<server>      -> encrypted stream info (HLS master playlist + subtitle tracks)
 //
 // enc-dec.app does the site-specific encryption; if it is unreachable the provider returns [].
 
@@ -78,22 +79,24 @@ function getStreams(tmdbId, mediaType, season, episode) {
 
     return request(SITE + path, { headers: { 'User-Agent': USER_AGENT } }, 'page')
         .then(function (html) {
-            var m = html.match(/\\"en\\":\\"([^\\]+)\\"/);
+            var m = html.match(/\\"(?:en|token)\\":\\"([^\\]+)\\"/);
             if (!m) throw new Error('payload not found on page (site layout changed?)');
-            return request(ENC_DEC + '/enc-vidfast?text=' + encodeURIComponent(m[1]), { headers: { 'User-Agent': USER_AGENT } }, 'enc-vidfast');
-        })
-        .then(function (body) {
-            var enc = JSON.parse(body).result;
-            if (!enc || !enc.servers || !enc.stream) throw new Error('enc-vidfast returned no endpoints');
-            var headers = {
-                'User-Agent': USER_AGENT,
-                'Referer': SITE + '/',
-                'Origin': SITE,
-                'X-Csrf-Token': enc.token || '',
-                'Accept': '*/*'
-            };
-            return request(enc.servers, { method: 'POST', headers: headers }, 'servers')
-                .then(decrypt)
+            var base = { 'User-Agent': USER_AGENT, 'Referer': SITE + '/', 'Origin': SITE, 'X-Requested-With': 'XMLHttpRequest', 'Accept': '*/*' };
+            return request(ENC_DEC + '/enc-vidfast?text=' + encodeURIComponent(m[1]) + '&stage=1', { headers: { 'User-Agent': USER_AGENT } }, 'enc-vidfast stage 1')
+                .then(function (body) {
+                    var s1 = JSON.parse(body).result;
+                    if (!s1 || !s1.stage1) throw new Error('enc-vidfast stage 1 returned no endpoint');
+                    return request(s1.stage1, { method: 'POST', headers: Object.assign({}, base, { 'X-Csrf-Token': s1.token || '' }) }, 'stage 1');
+                })
+                .then(function (stage1Text) {
+                    return request(ENC_DEC + '/enc-vidfast?text=' + encodeURIComponent(stage1Text) + '&stage=2', { headers: { 'User-Agent': USER_AGENT } }, 'enc-vidfast stage 2');
+                })
+                .then(function (body) {
+                    var enc = JSON.parse(body).result;
+                    if (!enc || !enc.servers || !enc.stream) throw new Error('enc-vidfast stage 2 returned no endpoints');
+                    var headers = Object.assign({}, base, { 'X-Csrf-Token': enc.token || '' });
+                    return request(enc.servers, { method: 'POST', headers: headers }, 'servers')
+                        .then(decrypt)
                 .then(function (servers) {
                     return titlePromise.then(function (title) {
                         var label = title + (mediaType === 'tv' ? ' S' + String(season).padStart(2, '0') + 'E' + String(episode).padStart(2, '0') : '');
@@ -116,6 +119,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
                                 .catch(function () { return null; }); // one dead server must not sink the rest
                         }));
                     });
+                });
                 });
         })
         .then(function (streams) { return streams.filter(Boolean); })
