@@ -20,6 +20,7 @@ A small, curated set of streaming providers for the [Nuvio](https://github.com/t
 | Provider | Content | Quality | Notes |
 |---|---|---|---|
 | **vidfast** | Movies, TV | Up to 2160p (HLS ladder: 2160/1080/720/480) | English subtitles. Needs enc-dec.app. |
+| **cinejoy** | Movies, TV | Up to 2160p (HLS, several independent servers) | English subtitles. Needs enc-dec.app. |
 | **vaplayer** | Movies | 1080p HLS | No TV. |
 | **castle** | Movies, TV, K-dramas | 720p | Many subtitle languages, one stream per title. |
 | **anizone** | Anime | 1080p HLS | Japanese + English audio tracks, ASS subtitles. |
@@ -78,6 +79,7 @@ nuvio-providers/
 ├── src/
 │   ├── _shared/validate.js     # Stream validation shared by all providers
 │   ├── vidfast/                # core.js = scraper, index.js = scraper + validation
+│   ├── cinejoy/
 │   ├── vaplayer/
 │   ├── castle/
 │   ├── anizone/
