@@ -1,528 +1,438 @@
-// Vidnest Scraper for Nuvio Local Scrapers
-// React Native compatible version - Promise-based approach only
-// Extracts streaming links using TMDB ID for Vidnest servers with AES-GCM decryption
-
-// TMDB API Configuration
-const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-
-// Vidnest Configuration
-const VIDNEST_BASE_URL = 'https://first.vidnest.fun';
-const VIDNEST_PROXY_URL = 'https://vidnest.animanga.fun/proxy';
-const PASSPHRASE = 'A7kP9mQeXU2BWcD4fRZV+Sg8yN0/M5tLbC1HJQwYe6o=';
-const SERVERS = ['hollymoviehd', 'primesrc', 'ophim', 'flixhq', 'vidlink', 'rogflix'];
-
-// Working headers for Vidnest API (exact headers from browser)
-const WORKING_HEADERS = {
-    'accept': '*/*',
-    'accept-encoding': 'gzip, deflate, br, zstd',
-    'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-    'origin': 'https://vidnest.fun',
-    'referer': 'https://vidnest.fun/',
-    'sec-ch-ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-    'sec-ch-ua-mobile': '?1',
-    'sec-ch-ua-platform': '"Android"',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-site',
-    'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36'
+/**
+ * vidnest - Built from src/vidnest/
+ * Generated: 2026-10-06T05:58:24.106Z
+ */
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
-// Headers for stream playback (separate from API headers)
-const PLAYBACK_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-    'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'identity',
-    'Connection': 'keep-alive',
-    'Sec-Fetch-Dest': 'video',
-    'Sec-Fetch-Mode': 'no-cors',
-    'Sec-Fetch-Site': 'cross-site',
-    'DNT': '1'
-};
-
-// React Native-safe Base64 utilities (no Buffer dependency)
-const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-
-function base64ToBytes(base64) {
-    if (!base64) return new Uint8Array(0);
-    
-    // Remove padding
-    let input = String(base64).replace(/=+$/, '');
-    let output = '';
-    let bc = 0, bs, buffer, idx = 0;
-    
-    while ((buffer = input.charAt(idx++))) {
-        buffer = BASE64_CHARS.indexOf(buffer);
-        if (~buffer) {
-            bs = bc % 4 ? bs * 64 + buffer : buffer;
-            if (bc++ % 4) {
-                output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
-            }
-        }
-    }
-    
-    // Convert string to bytes
-    const bytes = new Uint8Array(output.length);
-    for (let i = 0; i < output.length; i++) {
-        bytes[i] = output.charCodeAt(i);
-    }
-    return bytes;
-}
-
-function bytesToBase64(bytes) {
-    if (!bytes || bytes.length === 0) return '';
-    
-    let output = '';
-    let i = 0;
-    const len = bytes.length;
-    
-    while (i < len) {
-        const a = bytes[i++];
-        const b = i < len ? bytes[i++] : 0;
-        const c = i < len ? bytes[i++] : 0;
-        
-        const bitmap = (a << 16) | (b << 8) | c;
-        
-        output += BASE64_CHARS.charAt((bitmap >> 18) & 63);
-        output += BASE64_CHARS.charAt((bitmap >> 12) & 63);
-        output += i - 2 < len ? BASE64_CHARS.charAt((bitmap >> 6) & 63) : '=';
-        output += i - 1 < len ? BASE64_CHARS.charAt(bitmap & 63) : '=';
-    }
-    
-    return output;
-}
-
-// Node.js compatible atob function
-function atob(str) {
-    return base64ToBytes(str).map(byte => String.fromCharCode(byte)).join('');
-}
-
-// AES-GCM Decryption using server (React Native compatible)
-function decryptAesGcm(encryptedB64, passphraseB64) {
-    console.log('[Vidnest] Starting AES-GCM decryption via server...');
-    
-    // Use local server for development, remote for production
-    const decryptServerUrl = process.env.DECRYPT_SERVER_URL || 'https://aesdec.nuvioapp.space/decrypt';
-    
-    return fetch(decryptServerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            encryptedData: encryptedB64,
-            passphrase: passphraseB64
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) throw new Error(data.error);
-        console.log('[Vidnest] Server decryption successful');
-        return data.decrypted;
-    })
-    .catch(error => {
-        console.error(`[Vidnest] Server decryption failed: ${error.message}`);
-        throw error;
-    });
-}
-
-// Validate stream URL accessibility
-function validateStreamUrl(url, headers) {
-    console.log(`[Vidnest] Validating stream URL: ${url.substring(0, 60)}...`);
-    
-    // Skip validation for HLS streams (.m3u8) - they're often protected and return 403
-    // but work fine in video players
-    if (url.includes('.m3u8') || url.includes('/streamsvr/') || url.includes('/stream2/')) {
-        console.log(`[Vidnest] Skipping validation for HLS/protected stream`);
-        return Promise.resolve(true);
-    }
-    
-    return fetch(url, {
-        method: 'HEAD',
-        headers: headers,
-        timeout: 5000
-    })
-    .then(response => {
-        // Accept 200 OK, 206 Partial Content, 302 redirects, or 403 (protected but valid)
-        const isValid = response.ok || response.status === 206 || response.status === 302 || response.status === 403;
-        console.log(`[Vidnest] URL validation result: ${response.status} - ${isValid ? 'VALID' : 'INVALID'}`);
-        return isValid;
-    })
-    .catch(error => {
-        console.log(`[Vidnest] URL validation failed: ${error.message}`);
-        // For protected streams, assume valid even if validation fails
-        if (url.includes('.m3u8') || url.includes('/streamsvr/') || url.includes('/stream2/')) {
-            return true;
-        }
-        return false;
-    });
-}
-
-// Helper function to make HTTP requests
-function makeRequest(url, options = {}) {
-    const defaultHeaders = { ...WORKING_HEADERS };
-    
-    return fetch(url, {
-        method: options.method || 'GET',
-        headers: { ...defaultHeaders, ...options.headers },
-        ...options
-    }).then(function(response) {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response;
-    }).catch(function(error) {
-        console.error(`[Vidnest] Request failed for ${url}: ${error.message}`);
-        throw error;
-    });
-}
-
-// Get movie/TV show details from TMDB
-function getTMDBDetails(tmdbId, mediaType) {
-    const endpoint = mediaType === 'tv' ? 'tv' : 'movie';
-    const url = `${TMDB_BASE_URL}/${endpoint}/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=external_ids`;
-    
-    return makeRequest(url)
-        .then(function(response) {
-            return response.json();
-        })
-        .then(function(data) {
-            const title = mediaType === 'tv' ? data.name : data.title;
-            const releaseDate = mediaType === 'tv' ? data.first_air_date : data.release_date;
-            const year = releaseDate ? parseInt(releaseDate.split('-')[0]) : null;
-            
-            return {
-                title: title,
-                year: year,
-                imdbId: data.external_ids?.imdb_id || null
-            };
-        });
-}
-
-// Extract quality from URL or response
-function extractQuality(url) {
-    if (!url) return 'Unknown';
-    
-    // Try to extract quality from URL patterns
-    const qualityPatterns = [
-        /(\d{3,4})p/i,  // 1080p, 720p, etc.
-        /(\d{3,4})k/i,  // 1080k, 720k, etc.
-        /quality[_-]?(\d{3,4})/i,  // quality-1080, quality_720, etc.
-        /res[_-]?(\d{3,4})/i,  // res-1080, res_720, etc.
-        /(\d{3,4})x\d{3,4}/i,  // 1920x1080, 1280x720, etc.
+// src/vidnest/core.js
+var require_core = __commonJS({
+  "src/vidnest/core.js"(exports2, module2) {
+    var API = "https://new.vidnest.fun";
+    var TMDB = "https://api.themoviedb.org/3";
+    var TMDB_KEY = "439c478a771f35c05022f9feabcca01c";
+    var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
+    var TIMEOUT_MS = 12e3;
+    var ALPHABET = "RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW+/=";
+    var SITE_HEADERS = { "Accept": "*/*", "Origin": "https://vidnest.fun", "Referer": "https://vidnest.fun/", "User-Agent": UA };
+    var SERVERS = [
+      { label: "Zeta", path: "nextgencloudfabric" },
+      { label: "Gama", path: "vidzee" }
     ];
-
-    for (const pattern of qualityPatterns) {
-        const match = url.match(pattern);
-        if (match) {
-            const qualityNum = parseInt(match[1]);
-            if (qualityNum >= 240 && qualityNum <= 4320) {
-                return `${qualityNum}p`;
-            }
-        }
-    }
-
-    // Additional quality detection based on URL patterns
-    if (url.includes('1080') || url.includes('1920')) return '1080p';
-    if (url.includes('720') || url.includes('1280')) return '720p';
-    if (url.includes('480') || url.includes('854')) return '480p';
-    if (url.includes('360') || url.includes('640')) return '360p';
-    if (url.includes('240') || url.includes('426')) return '240p';
-
-    return 'Unknown';
-}
-
-// Wrap URLs through Vidnest proxy if needed (for flashstream.cc and other protected domains)
-function wrapUrlWithProxy(url) {
-    // Check if URL needs proxying (flashstream.cc returns 403 without proxy)
-    // Also check for patterns that typically need proxy (streamsvr, /pl/, etc.)
-    if (url.includes('flashstream.cc') || 
-        url.includes('streamsvr/') || 
-        url.includes('/pl/') ||
-        url.includes('rogflix') ||
-        (url.includes('lethe399key.com') && url.includes('/stream2/'))) {
-        
-        // Determine origin and referer based on URL domain
-        let origin = 'https://flashstream.cc';
-        let referer = 'https://flashstream.cc/';
-        
-        if (url.includes('lethe399key.com')) {
-            origin = 'https://lethe399key.com';
-            referer = 'https://lethe399key.com/';
-        }
-        
-        const proxyHeaders = {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0',
-            'accept': '*/*',
-            'accept-language': 'en-US,en;q=0.5',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'cross-site',
-            'origin': origin,
-            'referer': referer
-        };
-        
-        const encodedUrl = encodeURIComponent(url);
-        const encodedHeaders = encodeURIComponent(JSON.stringify(proxyHeaders));
-        const proxiedUrl = `${VIDNEST_PROXY_URL}?url=${encodedUrl}&headers=${encodedHeaders}`;
-        
-        console.log(`[Vidnest] Wrapping URL through proxy: ${url.substring(0, 60)}...`);
-        return proxiedUrl;
-    }
-    
-    return url;
-}
-
-// Process Vidnest API response
-function processVidnestResponse(data, serverName, mediaInfo, seasonNum, episodeNum) {
-    const streams = [];
-    
-    try {
-        console.log(`[Vidnest] Processing response from ${serverName}:`, JSON.stringify(data, null, 2));
-        
-        // Handle different response formats for different servers
-        let sources = [];
-        
-        // Standard format: sources or streams array
-        if (data.sources && Array.isArray(data.sources)) {
-            sources = data.sources;
-        } else if (data.streams && Array.isArray(data.streams)) {
-            sources = data.streams;
-        }
-        // Flixhq format: url directly in response
-        else if (data.url && typeof data.url === 'string') {
-            sources = [{ url: data.url, type: 'hls', headers: data.headers, subtitles: data.subtitles }];
-        }
-        // Vidlink format: data field contains the URL
-        else if (data.data && typeof data.data === 'string') {
-            sources = [{ url: data.data, type: 'hls', headers: data.headers, provider: data.provider }];
-        }
-        // Check if response has success field
-        else if (data.success && (data.sources || data.streams)) {
-            sources = data.sources || data.streams || [];
-        }
-        
-        if (!Array.isArray(sources) || sources.length === 0) {
-            console.log(`[Vidnest] ${serverName}: No sources/streams found in response`);
-            return streams;
-        }
-        
-        // Process each source
-        sources.forEach((source, index) => {
-            if (!source) return;
-            
-            // Extract video URL from various possible fields
-            let videoUrl = source.file || source.url || source.src || source.link;
-            
-            if (!videoUrl) {
-                console.log(`[Vidnest] ${serverName}: Source ${index} has no video URL`);
-                return;
-            }
-            
-            // Wrap URL through Vidnest proxy if needed (for flashstream.cc)
-            videoUrl = wrapUrlWithProxy(videoUrl);
-            
-            // Extract language information
-            let languageInfo = '';
-            if (source.language) {
-                languageInfo = ` [${source.language}]`;
-            }
-            
-            // Extract label/source information for better naming
-            let labelInfo = '';
-            if (source.label) {
-                labelInfo = ` - ${source.label}`;
-            } else if (source.source) {
-                labelInfo = ` - ${source.source}`;
-            }
-            
-            // Create media title
-            let mediaTitle = mediaInfo.title || 'Unknown';
-            if (mediaInfo.year) {
-                mediaTitle += ` (${mediaInfo.year})`;
-            }
-            if (seasonNum && episodeNum) {
-                mediaTitle = `${mediaInfo.title} S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}`;
-            }
-            
-            // Use "auto" quality for all streams
-            const quality = 'auto';
-            
-            streams.push({
-                name: `Vidnest ${serverName.charAt(0).toUpperCase() + serverName.slice(1)}${labelInfo}${languageInfo}`,
-                title: mediaTitle,
-                url: videoUrl,
-                quality: quality,
-                size: 'Unknown',
-                provider: 'vidnest'
-            });
-            
-            console.log(`[Vidnest] ${serverName}: Added ${quality}${languageInfo} stream: ${videoUrl.substring(0, 60)}...`);
+    function timeout(promise, ms, label) {
+      return new Promise(function(resolve, reject) {
+        var timer = setTimeout(function() {
+          reject(new Error(label + " timed out"));
+        }, ms);
+        promise.then(function(v) {
+          clearTimeout(timer);
+          resolve(v);
+        }, function(e) {
+          clearTimeout(timer);
+          reject(e);
         });
-        
-    } catch (error) {
-        console.error(`[Vidnest] Error processing ${serverName} response: ${error.message}`);
+      });
     }
-    
-    return streams;
-}
-
-// Fetch streams from a single server
-function fetchFromServer(serverName, mediaType, tmdbId, mediaInfo, seasonNum, episodeNum) {
-    console.log(`[Vidnest] Fetching from ${serverName}...`);
-    
-    // Build API URL
-    let apiUrl;
-    if (mediaType === 'tv' && seasonNum && episodeNum) {
-        apiUrl = `${VIDNEST_BASE_URL}/${serverName}/${mediaType}/${tmdbId}/${seasonNum}/${episodeNum}`;
-    } else {
-        apiUrl = `${VIDNEST_BASE_URL}/${serverName}/${mediaType}/${tmdbId}`;
+    function fetchJson(url, options, label) {
+      return timeout(fetch(url, options), TIMEOUT_MS, label).then(function(res) {
+        if (!res.ok)
+          throw new Error(label + " HTTP " + res.status);
+        return res.json();
+      });
     }
-    
-    // Handle special query parameters for specific servers
-    // Flixhq supports ?server=upcloud parameter
-    if (serverName === 'flixhq') {
-        apiUrl += '?server=upcloud';
+    function decodeCipher(text) {
+      var map = {};
+      for (var i = 0; i < ALPHABET.length; i++)
+        map[ALPHABET.charAt(i)] = i;
+      var bytes = [];
+      for (var p = 0; p < text.length; p += 4) {
+        var chunk = text.substr(p, 4);
+        while (chunk.length < 4)
+          chunk += "=";
+        var v = [];
+        for (var j = 0; j < 4; j++) {
+          var t = map[chunk.charAt(j)];
+          v.push(t === void 0 ? 64 : t);
+        }
+        bytes.push(v[0] << 2 | v[1] >> 4);
+        if (v[2] !== 64)
+          bytes.push((v[1] & 15) << 4 | v[2] >> 2);
+        if (v[3] !== 64)
+          bytes.push((v[2] & 3) << 6 | v[3]);
+      }
+      var out = "";
+      for (var k = 0; k < bytes.length; k++)
+        out += "%" + ("0" + (bytes[k] & 255).toString(16)).slice(-2);
+      try {
+        return decodeURIComponent(out);
+      } catch (e) {
+        var raw = "";
+        for (var m = 0; m < bytes.length; m++)
+          raw += String.fromCharCode(bytes[m] & 255);
+        return raw;
+      }
     }
-    
-    console.log(`[Vidnest] ${serverName} API URL: ${apiUrl}`);
-    
-    return makeRequest(apiUrl)
-        .then(function(response) {
-            return response.text();
-        })
-        .then(function(responseText) {
-            console.log(`[Vidnest] ${serverName} response length: ${responseText.length} characters`);
-            
-            // Try to parse as JSON first
-            try {
-                const data = JSON.parse(responseText);
-                
-                // Check if response contains encrypted data
-                if (data.encrypted && data.data) {
-                    console.log(`[Vidnest] ${serverName}: Detected encrypted response, decrypting...`);
-                    
-                    return decryptAesGcm(data.data, PASSPHRASE)
-                        .then(function(decryptedText) {
-                            console.log(`[Vidnest] ${serverName}: Decryption successful`);
-                            
-                            try {
-                                const decryptedData = JSON.parse(decryptedText);
-                                return processVidnestResponse(decryptedData, serverName, mediaInfo, seasonNum, episodeNum);
-                            } catch (parseError) {
-                                console.error(`[Vidnest] ${serverName}: JSON parse error after decryption: ${parseError.message}`);
-                                return [];
-                            }
-                        });
-                } else {
-                    // Process non-encrypted response
-                    return processVidnestResponse(data, serverName, mediaInfo, seasonNum, episodeNum);
-                }
-            } catch (parseError) {
-                console.error(`[Vidnest] ${serverName}: Invalid JSON response: ${parseError.message}`);
-                return [];
-            }
-        })
-        .catch(function(error) {
-            console.error(`[Vidnest] ${serverName} error: ${error.message}`);
-            return [];
+    function isEnglish(lang) {
+      if (!lang)
+        return true;
+      return /^(en|english|multi|original|auto)/i.test(String(lang).trim());
+    }
+    function tmdbLabel(tmdbId, mediaType) {
+      return fetchJson(TMDB + "/" + (mediaType === "tv" ? "tv" : "movie") + "/" + tmdbId + "?api_key=" + TMDB_KEY, { headers: { "User-Agent": UA } }, "TMDB").then(function(d) {
+        var date = d.release_date || d.first_air_date || "";
+        return (d.title || d.name || "") + (date ? " (" + date.slice(0, 4) + ")" : "");
+      }).catch(function() {
+        return "";
+      });
+    }
+    function fetchServer(server, tmdbId, mediaType, season, episode) {
+      var url = API + "/" + server.path + "/" + (mediaType === "tv" ? "tv/" + tmdbId + "/" + season + "/" + episode : "movie/" + tmdbId);
+      return fetchJson(url, { headers: SITE_HEADERS }, server.label).then(function(j) {
+        if (j && j.encrypted && typeof j.data === "string")
+          j = JSON.parse(decodeCipher(j.data));
+        if (!j)
+          return [];
+        var items = [];
+        if (Array.isArray(j.streams)) {
+          j.streams.forEach(function(s) {
+            if (s && s.url && isEnglish(s.language))
+              items.push({ url: s.url, headers: s.headers, type: s.type, language: s.language });
+          });
+        } else if (j.url) {
+          items.push({ url: j.url, headers: j.headers });
+          (Array.isArray(j.all_urls) ? j.all_urls : []).slice(0, 2).forEach(function(u) {
+            if (u && u !== j.url)
+              items.push({ url: u, headers: j.headers });
+          });
+        }
+        return items.map(function(it) {
+          var isMp4 = it.type === "mp4" || /\.(mp4|mkv)(\?|$)/i.test(it.url);
+          var headers = {};
+          var src = it.headers && typeof it.headers === "object" ? it.headers : {};
+          for (var k in src)
+            headers[String(k).trim()] = String(src[k]).trim();
+          if (!headers["User-Agent"])
+            headers["User-Agent"] = UA;
+          return { server: server.label, url: String(it.url).replace(/\s+/g, ""), headers, isMp4 };
         });
-}
-
-// Main function to extract streaming links for Nuvio
-function getStreams(tmdbId, mediaType, seasonNum, episodeNum) {
-    console.log(`[Vidnest] Starting extraction for TMDB ID: ${tmdbId}, Type: ${mediaType}${mediaType === 'tv' ? `, S:${seasonNum}E:${episodeNum}` : ''}`);
-    
-    return new Promise((resolve, reject) => {
-        // First, fetch media details from TMDB
-        getTMDBDetails(tmdbId, mediaType)
-            .then(function(mediaInfo) {
-                console.log(`[Vidnest] TMDB Info: "${mediaInfo.title}" (${mediaInfo.year || 'N/A'})`);
-                
-                // Process both servers in parallel
-                const serverPromises = SERVERS.map(serverName => {
-                    return fetchFromServer(serverName, mediaType, tmdbId, mediaInfo, seasonNum, episodeNum);
-                });
-                
-                return Promise.all(serverPromises)
-                    .then(function(results) {
-                        // Combine all streams from all servers
-                        const allStreams = [];
-                        results.forEach(streams => {
-                            allStreams.push(...streams);
-                        });
-                        
-                        // Remove duplicate streams by URL
-                        const uniqueStreams = [];
-                        const seenUrls = new Set();
-                        allStreams.forEach(stream => {
-                            if (!seenUrls.has(stream.url)) {
-                                seenUrls.add(stream.url);
-                                uniqueStreams.push(stream);
-                            }
-                        });
-                        
-                        // Validate all streams in parallel
-                        console.log(`[Vidnest] Validating ${uniqueStreams.length} streams...`);
-                        const validationPromises = uniqueStreams.map(stream => 
-                            validateStreamUrl(stream.url, PLAYBACK_HEADERS)
-                                .then(isValid => ({ stream, isValid }))
-                        );
-                        
-                        return Promise.all(validationPromises)
-                            .then(function(results) {
-                                const validStreams = results
-                                    .filter(r => r.isValid)
-                                    .map(r => r.stream);
-                                
-                                console.log(`[Vidnest] Filtered ${uniqueStreams.length - validStreams.length} broken links`);
-                                
-                                // Sort streams by quality (highest first)
-                        const getQualityValue = (quality) => {
-                            const q = quality.toLowerCase().replace(/p$/, ''); // Remove trailing 'p'
-                            
-                            // Handle specific quality names
-                            if (q === '4k' || q === '2160') return 2160;
-                            if (q === '1440') return 1440;
-                            if (q === '1080') return 1080;
-                            if (q === '720') return 720;
-                            if (q === '480') return 480;
-                            if (q === '360') return 360;
-                            if (q === '240') return 240;
-                            
-                            // Handle unknown quality (put at end)
-                            if (q === 'unknown') return 0;
-                            
-                            // Try to parse as number
-                            const numQuality = parseInt(q);
-                            if (!isNaN(numQuality) && numQuality > 0) {
-                                return numQuality;
-                            }
-                            
-                            // Default for unrecognized qualities
-                            return 1;
-                        };
-                        
-                                validStreams.sort((a, b) => {
-                                    const qualityA = getQualityValue(a.quality);
-                                    const qualityB = getQualityValue(b.quality);
-                                    return qualityB - qualityA;
-                                });
-                                
-                                console.log(`[Vidnest] Total valid streams found: ${validStreams.length}`);
-                                resolve(validStreams);
-                            });
-                    });
-            })
-            .catch(function(error) {
-                console.error(`[Vidnest] Error fetching media details: ${error.message}`);
-                resolve([]); // Return empty array on error for Nuvio compatibility
+      }).catch(function() {
+        return [];
+      });
+    }
+    function getStreams2(tmdbId, mediaType, season, episode) {
+      mediaType = mediaType === "tv" ? "tv" : "movie";
+      return Promise.all([
+        tmdbLabel(tmdbId, mediaType),
+        Promise.all(SERVERS.map(function(s) {
+          return fetchServer(s, tmdbId, mediaType, season, episode);
+        }))
+      ]).then(function(res) {
+        var title = res[0] + (mediaType === "tv" ? " S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
+        var out = [];
+        res[1].forEach(function(list) {
+          list.forEach(function(s) {
+            out.push({
+              name: "VidNest " + s.server,
+              title,
+              url: s.url,
+              quality: "Auto",
+              type: s.isMp4 ? void 0 : "hls",
+              headers: s.headers,
+              subtitles: [],
+              provider: "vidnest"
             });
-    });
-}
+          });
+        });
+        return out;
+      }).catch(function(err) {
+        console.error("[VidNest] " + err.message);
+        return [];
+      });
+    }
+    module2.exports = { getStreams: getStreams2 };
+  }
+});
 
-// Export for React Native compatibility
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getStreams };
-} else {
-    global.getStreams = getStreams;
+// src/_shared/validate.js
+var require_validate = __commonJS({
+  "src/_shared/validate.js"(exports2, module2) {
+    var CHECK_TIMEOUT_MS = 7e3;
+    var OVERALL_TIMEOUT_MS = 15e3;
+    var CONCURRENCY = 10;
+    var DEFAULT_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36";
+    function withTimeout(promise, ms, label) {
+      return new Promise(function(resolve, reject) {
+        var timer = setTimeout(function() {
+          reject(new Error(label + " timed out"));
+        }, ms);
+        promise.then(function(v) {
+          clearTimeout(timer);
+          resolve(v);
+        }, function(e) {
+          clearTimeout(timer);
+          reject(e);
+        });
+      });
+    }
+    function resolveUrl(ref, base) {
+      if (/^https?:\/\//i.test(ref))
+        return ref;
+      var m = base.match(/^(https?:\/\/[^\/?#]+)([^?#]*)/i);
+      if (!m)
+        return ref;
+      if (ref.indexOf("//") === 0)
+        return base.split(":")[0] + ":" + ref;
+      if (ref.charAt(0) === "/")
+        return m[1] + ref;
+      return m[1] + m[2].replace(/[^\/]*$/, "") + ref;
+    }
+    function normalizeUrl(url) {
+      return String(url).replace(/[^\x21-\x7E]|[ "<>\\^`{|}\[\]]/g, function(c) {
+        return encodeURIComponent(c);
+      });
+    }
+    function qualityFromWidth(width) {
+      if (width >= 3800)
+        return "2160p";
+      if (width >= 1900)
+        return "1080p";
+      if (width >= 1260)
+        return "720p";
+      if (width >= 840)
+        return "480p";
+      return "360p";
+    }
+    function qualityNumber(q) {
+      var s = String(q || "").toLowerCase();
+      if (/4k|uhd/.test(s))
+        return 2160;
+      var m = s.match(/(\d{3,4})\s*p?/);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    function mergeHeaders(stream, extra) {
+      var h = { "User-Agent": DEFAULT_UA };
+      var own = stream.headers || {};
+      for (var k in own)
+        h[k] = own[k];
+      for (var e in extra || {})
+        h[e] = extra[e];
+      return h;
+    }
+    function probeHls(stream) {
+      var headers = mergeHeaders(stream);
+      return fetch(stream.url, { headers }).then(function(res) {
+        if (!res.ok)
+          throw new Error("playlist HTTP " + res.status);
+        return res.text();
+      }).then(function(text) {
+        if (text.indexOf("#EXTM3U") === -1)
+          throw new Error("not an HLS playlist");
+        var lines = text.split("\n").map(function(l) {
+          return l.trim();
+        });
+        var best = null, bestBw = -1, maxWidth = 0;
+        for (var i = 0; i < lines.length; i++) {
+          var m = lines[i].match(/^#EXT-X-STREAM-INF:(.*)$/);
+          if (!m)
+            continue;
+          var bw = (m[1].match(/BANDWIDTH=(\d+)/) || [0, 0])[1] | 0;
+          var w = (m[1].match(/RESOLUTION=(\d+)x\d+/) || [0, 0])[1] | 0;
+          if (w > maxWidth)
+            maxWidth = w;
+          if (bw > bestBw && lines[i + 1] && lines[i + 1].charAt(0) !== "#") {
+            bestBw = bw;
+            best = lines[i + 1];
+          }
+        }
+        var mediaUrl = stream.url;
+        var mediaPromise = Promise.resolve(text);
+        if (best) {
+          mediaUrl = resolveUrl(best, stream.url);
+          mediaPromise = fetch(mediaUrl, { headers }).then(function(r) {
+            if (!r.ok)
+              throw new Error("variant HTTP " + r.status);
+            return r.text();
+          });
+        }
+        return mediaPromise.then(function(media) {
+          var seg = null;
+          var ml = media.split("\n");
+          for (var j = 0; j < ml.length; j++) {
+            var l = ml[j].trim();
+            if (l && l.charAt(0) !== "#") {
+              seg = l;
+              break;
+            }
+          }
+          if (!seg)
+            throw new Error("playlist has no segments");
+          var segHeaders = mergeHeaders(stream, { Range: "bytes=0-65535" });
+          var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+          var opts = { headers: segHeaders };
+          if (controller)
+            opts.signal = controller.signal;
+          return fetch(resolveUrl(seg, mediaUrl), opts).then(function(r) {
+            if (!(r.status === 200 || r.status === 206))
+              throw new Error("segment HTTP " + r.status);
+            var len = parseInt(r.headers.get("content-length") || "0", 10);
+            if (len && len < 1e3)
+              throw new Error("segment too small");
+            if (controller) {
+              controller.abort();
+              return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+            }
+            return r.arrayBuffer().then(function(buf) {
+              if (buf.byteLength < 1e3)
+                throw new Error("segment too small");
+              return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+            });
+          });
+        });
+      });
+    }
+    function isVideoBytes(buf, contentType) {
+      var b = new Uint8Array(buf);
+      var mp4 = b.length > 8 && b[4] === 102 && b[5] === 116 && b[6] === 121 && b[7] === 112;
+      var mkv = b.length > 4 && b[0] === 26 && b[1] === 69 && b[2] === 223 && b[3] === 163;
+      var ts = b.length > 188 && b[0] === 71 && b[188] === 71;
+      return mp4 || mkv || ts || /^video\//i.test(contentType || "");
+    }
+    function probeDirect(stream) {
+      var headers = mergeHeaders(stream, { Range: "bytes=0-2047" });
+      return fetch(stream.url, { headers }).then(function(res) {
+        if (!(res.status === 200 || res.status === 206))
+          throw new Error("HTTP " + res.status);
+        var ct = res.headers.get("content-type") || "";
+        if (/text\/html|application\/json/i.test(ct))
+          throw new Error("web page, not video");
+        return res.arrayBuffer().then(function(buf) {
+          if (!isVideoBytes(buf, ct))
+            throw new Error("not video data");
+          return { height: null };
+        });
+      });
+    }
+    function probe(stream) {
+      var started = Date.now();
+      var isHls = /\.m3u8(\?|#|$)/i.test(stream.url) || stream.type === "hls";
+      return withTimeout(isHls ? probeHls(stream) : probeDirect(stream), CHECK_TIMEOUT_MS, "check").then(function(r) {
+        return { ok: true, ms: Date.now() - started, quality: r.height };
+      }).catch(function(e) {
+        return { ok: false, ms: Date.now() - started, why: e.message };
+      });
+    }
+    function validateStreams2(streams, options) {
+      options = options || {};
+      if (!Array.isArray(streams) || streams.length === 0)
+        return Promise.resolve(streams || []);
+      var seen = {};
+      var unique = streams.filter(function(s) {
+        if (!s || typeof s.url !== "string" || !/^https?:\/\//i.test(s.url))
+          return false;
+        var key = normalizeUrl(s.url);
+        if (seen[key])
+          return false;
+        seen[key] = true;
+        return true;
+      }).map(function(s) {
+        var c = {};
+        for (var k in s)
+          c[k] = s[k];
+        c.url = normalizeUrl(s.url);
+        return c;
+      });
+      var results = new Array(unique.length);
+      var next = 0;
+      var deadline = Date.now() + (options.overallTimeout || OVERALL_TIMEOUT_MS);
+      function worker() {
+        if (next >= unique.length || Date.now() >= deadline)
+          return Promise.resolve();
+        var i = next++;
+        return probe(unique[i]).then(function(r) {
+          results[i] = r;
+          return worker();
+        });
+      }
+      var workers = [];
+      for (var w = 0; w < Math.min(CONCURRENCY, unique.length); w++)
+        workers.push(worker());
+      return withTimeout(Promise.all(workers), (options.overallTimeout || OVERALL_TIMEOUT_MS) + 2e3, "validation").catch(function() {
+      }).then(function() {
+        var kept = [];
+        for (var i = 0; i < unique.length; i++) {
+          var r = results[i];
+          if (!r || !r.ok)
+            continue;
+          var s = unique[i];
+          var out = {};
+          for (var k in s)
+            out[k] = s[k];
+          if (r.quality && !qualityNumber(s.quality))
+            out.quality = r.quality;
+          out._ms = r.ms;
+          kept.push(out);
+        }
+        kept.sort(function(a, b) {
+          var qa = qualityNumber(a.quality), qb = qualityNumber(b.quality);
+          if (qa !== qb)
+            return qb - qa;
+          return a._ms - b._ms;
+        });
+        kept.forEach(function(s2) {
+          delete s2._ms;
+        });
+        return kept;
+      }).catch(function() {
+        return streams;
+      });
+    }
+    function dropWrongYear2(streams, tmdbId, mediaType) {
+      if (mediaType !== "movie" || !Array.isArray(streams) || streams.length === 0)
+        return Promise.resolve(streams);
+      return fetch("https://api.themoviedb.org/3/movie/" + tmdbId + "?api_key=439c478a771f35c05022f9feabcca01c").then(function(r) {
+        return r.json();
+      }).then(function(d) {
+        var year = parseInt(String(d.release_date || "").slice(0, 4), 10);
+        if (!year)
+          return streams;
+        return streams.filter(function(st) {
+          var m = String(st.title || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?:[^0-9]|$)/);
+          return !m || Math.abs(parseInt(m[1], 10) - year) <= 1;
+        });
+      }).catch(function() {
+        return streams;
+      });
+    }
+    var INDIAN_LANG = /(^|[^a-z])(hindi|hin|tamil|tam|telugu|tel|malayalam|mal|kannada|kan|bengali|punjabi|marathi|bollywood|desi)([^a-z]|$)/i;
+    function dropIndianLanguages2(streams) {
+      if (!Array.isArray(streams))
+        return streams;
+      return streams.filter(function(st) {
+        var text = [st.name, st.title, st.language, st.lang, st.url].map(function(v) {
+          var t = String(v || "");
+          try {
+            t = decodeURIComponent(t);
+          } catch (e) {
+          }
+          return t;
+        }).join(" ");
+        return !INDIAN_LANG.test(text);
+      });
+    }
+    module2.exports = { validateStreams: validateStreams2, dropWrongYear: dropWrongYear2, dropIndianLanguages: dropIndianLanguages2 };
+  }
+});
+
+// src/vidnest/index.js
+var { getStreams: scrape } = require_core();
+var { validateStreams, dropWrongYear, dropIndianLanguages } = require_validate();
+function getStreams(tmdbId, mediaType, season, episode) {
+  return Promise.resolve(scrape(tmdbId, mediaType, season, episode)).then(function(streams) {
+    return dropWrongYear(dropIndianLanguages(streams), tmdbId, mediaType);
+  }).then(function(streams) {
+    return validateStreams(streams);
+  });
 }
+module.exports = { getStreams };
