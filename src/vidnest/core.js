@@ -11,6 +11,11 @@ const TMDB = 'https://api.themoviedb.org/3';
 const TMDB_KEY = '439c478a771f35c05022f9feabcca01c';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
 const TIMEOUT_MS = 12000;
+const CryptoJS = require('crypto-js');
+// The API now wants a random per-request nonce (?_n=) and answers { v: 2, d, n }: AES-256-GCM,
+// key = SHA-256("<n>|<SECRET>"), d = base64url(iv(12) | ciphertext | tag(16)). GCM is CTR mode starting at
+// counter 2, so crypto-js (provided by the app) can decrypt it; the auth tag is dropped, not verified.
+const SECRET = 'F9k2mR8vL4qP7wY1zN0fG3bS6tH5jC8d_x4R7vN2mP9qL1';
 const ALPHABET = 'RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW+/=';
 const SITE_HEADERS = { 'Accept': '*/*', 'Origin': 'https://vidnest.fun', 'Referer': 'https://vidnest.fun/', 'User-Agent': UA };
 
@@ -34,6 +39,26 @@ function fetchJson(url, options, label) {
         if (!res.ok) throw new Error(label + ' HTTP ' + res.status);
         return res.json();
     });
+}
+
+function randomNonce() {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', out = '';
+    for (var i = 0; i < 22; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
+    return out;
+}
+
+function decryptV2(d, n) {
+    var b64 = String(d).replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var hex = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Base64.parse(b64));
+    if (hex.length < 56) throw new Error('payload too short');
+    var key = CryptoJS.SHA256(String(n) + '|' + SECRET);
+    var plain = CryptoJS.AES.decrypt(
+        { ciphertext: CryptoJS.enc.Hex.parse(hex.slice(24, hex.length - 32)) },
+        key,
+        { iv: CryptoJS.enc.Hex.parse(hex.slice(0, 24) + '00000002'), mode: CryptoJS.mode.CTR, padding: CryptoJS.pad.NoPadding }
+    ).toString(CryptoJS.enc.Utf8);
+    return JSON.parse(plain);
 }
 
 // base64 with a custom alphabet, UTF-8 payload (no Buffer / TextDecoder dependence)
@@ -78,8 +103,9 @@ function tmdbLabel(tmdbId, mediaType) {
 
 function fetchServer(server, tmdbId, mediaType, season, episode) {
     var url = API + '/' + server.path + '/' + (mediaType === 'tv' ? 'tv/' + tmdbId + '/' + season + '/' + episode : 'movie/' + tmdbId);
-    return fetchJson(url, { headers: SITE_HEADERS }, server.label).then(function (j) {
-        if (j && j.encrypted && typeof j.data === 'string') j = JSON.parse(decodeCipher(j.data));
+    return fetchJson(url + '?_n=' + randomNonce(), { headers: SITE_HEADERS }, server.label).then(function (j) {
+        if (j && j.v === 2 && j.d) j = decryptV2(j.d, j.n);
+        else if (j && j.encrypted && typeof j.data === 'string') j = JSON.parse(decodeCipher(j.data));
         if (!j) return [];
         var items = [];
         if (Array.isArray(j.streams)) {
