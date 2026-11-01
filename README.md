@@ -29,6 +29,8 @@ A small, curated set of streaming providers for the [Nuvio](https://github.com/t
 | **vaplayer** | Movies | 1080p HLS | No TV. |
 | **castle** | Movies, TV, K-dramas | 720p | Many subtitle languages, one stream per title. |
 | **anizone** | Anime | 1080p HLS | Japanese + English audio tracks, ASS subtitles. |
+| **megaplay** | Anime | 1080p HLS | Sub and dub with English captions. Needs enc-dec.app and AniList. |
+| **animeparadise** | Anime | 1080p HLS | Japanese audio, soft English subs. |
 | **animeheaven** | Anime | 720p MP4 | Japanese audio, soft English subtitles. |
 | **kisskh** | K-dramas / Asian dramas | HLS | English subtitles. Needs enc-dec.app. |
 

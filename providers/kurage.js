@@ -1,6 +1,6 @@
 /**
  * kurage - Built from src/kurage/
- * Generated: 2026-11-01T09:12:34.623Z
+ * Generated: 2026-11-01T09:34:47.620Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -541,15 +541,17 @@ var require_validate = __commonJS({
       if (!Array.isArray(streams))
         return streams;
       return streams.filter(function(st) {
-        var text = [st.name, st.title, st.language, st.lang, st.url].map(function(v) {
-          var t = String(v || "");
-          try {
-            t = decodeURIComponent(t);
-          } catch (e) {
-          }
-          return t;
-        }).join(" ");
-        return !INDIAN_LANG.test(text);
+        var parts = [st.name, st.title, st.language, st.lang];
+        try {
+          String(st.url || "").split("?")[0].split("#")[0].split("/").slice(3).forEach(function(seg) {
+            if (!/^[A-Za-z0-9_-]{24,}$/.test(seg))
+              parts.push(decodeURIComponent(seg));
+          });
+        } catch (e) {
+        }
+        return !INDIAN_LANG.test(parts.map(function(v) {
+          return String(v || "");
+        }).join(" "));
       });
     }
     module2.exports = { validateStreams: validateStreams2, dropWrongYear, dropIndianLanguages };

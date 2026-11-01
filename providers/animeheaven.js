@@ -1,6 +1,6 @@
 /**
  * animeheaven - Built from src/animeheaven/
- * Generated: 2026-10-02T22:37:08.093Z
+ * Generated: 2026-11-01T09:34:47.594Z
  */
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
@@ -454,6 +454,14 @@ var require_validate = __commonJS({
             var len = parseInt(r.headers.get("content-length") || "0", 10);
             if (len && len < 1e3)
               throw new Error("segment too small");
+            if (/^image\//i.test(r.headers.get("content-type") || "")) {
+              return r.arrayBuffer().then(function(buf) {
+                var b = new Uint8Array(buf);
+                if (b.length > 4 && b[0] === 137 && b[1] === 80 && b[2] === 78 && b[3] === 71)
+                  throw new Error("segment is a PNG image");
+                return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+              });
+            }
             if (controller) {
               controller.abort();
               return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
@@ -585,15 +593,17 @@ var require_validate = __commonJS({
       if (!Array.isArray(streams))
         return streams;
       return streams.filter(function(st) {
-        var text = [st.name, st.title, st.language, st.lang, st.url].map(function(v) {
-          var t = String(v || "");
-          try {
-            t = decodeURIComponent(t);
-          } catch (e) {
-          }
-          return t;
-        }).join(" ");
-        return !INDIAN_LANG.test(text);
+        var parts = [st.name, st.title, st.language, st.lang];
+        try {
+          String(st.url || "").split("?")[0].split("#")[0].split("/").slice(3).forEach(function(seg) {
+            if (!/^[A-Za-z0-9_-]{24,}$/.test(seg))
+              parts.push(decodeURIComponent(seg));
+          });
+        } catch (e) {
+        }
+        return !INDIAN_LANG.test(parts.map(function(v) {
+          return String(v || "");
+        }).join(" "));
       });
     }
     module2.exports = { validateStreams: validateStreams2, dropWrongYear: dropWrongYear2, dropIndianLanguages: dropIndianLanguages2 };

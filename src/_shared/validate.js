@@ -241,12 +241,14 @@ var INDIAN_LANG = /(^|[^a-z])(hindi|hin|tamil|tam|telugu|tel|malayalam|mal|kanna
 function dropIndianLanguages(streams) {
     if (!Array.isArray(streams)) return streams;
     return streams.filter(function (st) {
-        var text = [st.name, st.title, st.language, st.lang, st.url].map(function (v) {
-            var t = String(v || '');
-            try { t = decodeURIComponent(t); } catch (e) { /* keep raw */ }
-            return t;
-        }).join(' ');
-        return !INDIAN_LANG.test(text);
+        var parts = [st.name, st.title, st.language, st.lang];
+        // the URL only counts through readable path segments: long base64-like tokens can spell "mal"/"tam" by accident
+        try {
+            String(st.url || '').split('?')[0].split('#')[0].split('/').slice(3).forEach(function (seg) {
+                if (!/^[A-Za-z0-9_-]{24,}$/.test(seg)) parts.push(decodeURIComponent(seg));
+            });
+        } catch (e) { /* ignore malformed URLs */ }
+        return !INDIAN_LANG.test(parts.map(function (v) { return String(v || ''); }).join(' '));
     });
 }
 
