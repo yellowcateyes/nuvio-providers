@@ -1,6 +1,6 @@
 /**
  * vidnest - Built from src/vidnest/
- * Generated: 2026-11-01T09:34:47.568Z
+ * Generated: 2026-11-01T09:38:43.930Z
  */
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
@@ -16,7 +16,8 @@ var require_core = __commonJS({
     var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
     var TIMEOUT_MS = 12e3;
     var CryptoJS = require("crypto-js");
-    var SECRET = "F9k2mR8vL4qP7wY1zN0fG3bS6tH5jC8d_x4R7vN2mP9qL1";
+    var SECRETS = ["K3p8vQ2mX9rL5wZ0fN7bG1sH4tJ6dC9_y8S3wM1nQ5pL2", "F9k2mR8vL4qP7wY1zN0fG3bS6tH5jC8d_x4R7vN2mP9qL1"];
+    var secretRefresh = null;
     var ALPHABET = "RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW+/=";
     var SITE_HEADERS = { "Accept": "*/*", "Origin": "https://vidnest.fun", "Referer": "https://vidnest.fun/", "User-Agent": UA };
     var SERVERS = [
@@ -50,20 +51,63 @@ var require_core = __commonJS({
         out += chars.charAt(Math.floor(Math.random() * chars.length));
       return out;
     }
-    function decryptV2(d, n) {
+    function decryptV2(d, n, secret) {
       var b64 = String(d).replace(/-/g, "+").replace(/_/g, "/");
       while (b64.length % 4)
         b64 += "=";
       var hex = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Base64.parse(b64));
       if (hex.length < 56)
         throw new Error("payload too short");
-      var key = CryptoJS.SHA256(String(n) + "|" + SECRET);
+      var key = CryptoJS.SHA256(String(n) + "|" + secret);
       var plain = CryptoJS.AES.decrypt(
         { ciphertext: CryptoJS.enc.Hex.parse(hex.slice(24, hex.length - 32)) },
         key,
         { iv: CryptoJS.enc.Hex.parse(hex.slice(0, 24) + "00000002"), mode: CryptoJS.mode.CTR, padding: CryptoJS.pad.NoPadding }
       ).toString(CryptoJS.enc.Utf8);
       return JSON.parse(plain);
+    }
+    function tryDecrypt(d, n) {
+      var last;
+      for (var i = 0; i < SECRETS.length; i++) {
+        try {
+          return decryptV2(d, n, SECRETS[i]);
+        } catch (e) {
+          last = e;
+        }
+      }
+      throw last || new Error("no secret decrypts the payload");
+    }
+    function refreshSecret() {
+      if (secretRefresh)
+        return secretRefresh;
+      secretRefresh = timeout(fetch("https://vidnest.fun/movie/603", { headers: { "User-Agent": UA } }), TIMEOUT_MS, "vidnest page").then(function(r) {
+        return r.text();
+      }).then(function(html) {
+        var chunks = [], seen = {}, re = /\/_next\/static\/chunks\/[A-Za-z0-9_.-]+\.js/g, m;
+        while (m = re.exec(html))
+          if (!seen[m[0]]) {
+            seen[m[0]] = true;
+            chunks.push(m[0]);
+          }
+        return Promise.all(chunks.map(function(c) {
+          return timeout(fetch("https://vidnest.fun" + c, { headers: { "User-Agent": UA } }), TIMEOUT_MS, "chunk").then(function(r) {
+            return r.text();
+          }).then(function(js) {
+            var f = js.match(/let [A-Za-z_$]="([A-Za-z0-9_-]{24,64})",[A-Za-z_$]="https:\/\/new\.vidnest\.fun"/);
+            return f ? f[1] : null;
+          }).catch(function() {
+            return null;
+          });
+        }));
+      }).then(function(found) {
+        var secret = found.filter(Boolean)[0];
+        if (secret && SECRETS.indexOf(secret) === -1)
+          SECRETS.unshift(secret);
+        return secret || null;
+      }).catch(function() {
+        return null;
+      });
+      return secretRefresh;
     }
     function decodeCipher(text) {
       var map = {};
@@ -110,38 +154,49 @@ var require_core = __commonJS({
         return "";
       });
     }
+    function shapeServerJson(server, j) {
+      if (!j)
+        return [];
+      var items = [];
+      if (Array.isArray(j.streams)) {
+        j.streams.forEach(function(s) {
+          if (s && s.url && isEnglish(s.language))
+            items.push({ url: s.url, headers: s.headers, type: s.type, language: s.language });
+        });
+      } else if (j.url) {
+        items.push({ url: j.url, headers: j.headers });
+        (Array.isArray(j.all_urls) ? j.all_urls : []).slice(0, 2).forEach(function(u) {
+          if (u && u !== j.url)
+            items.push({ url: u, headers: j.headers });
+        });
+      }
+      return items.map(function(it) {
+        var isMp4 = it.type === "mp4" || /\.(mp4|mkv)(\?|$)/i.test(it.url);
+        var headers = {};
+        var src = it.headers && typeof it.headers === "object" ? it.headers : {};
+        for (var k in src)
+          headers[String(k).trim()] = String(src[k]).trim();
+        if (!headers["User-Agent"])
+          headers["User-Agent"] = UA;
+        return { server: server.label, url: String(it.url).replace(/\s+/g, ""), headers, isMp4 };
+      });
+    }
     function fetchServer(server, tmdbId, mediaType, season, episode) {
       var url = API + "/" + server.path + "/" + (mediaType === "tv" ? "tv/" + tmdbId + "/" + season + "/" + episode : "movie/" + tmdbId);
       return fetchJson(url + "?_n=" + randomNonce(), { headers: SITE_HEADERS }, server.label).then(function(j) {
-        if (j && j.v === 2 && j.d)
-          j = decryptV2(j.d, j.n);
-        else if (j && j.encrypted && typeof j.data === "string")
-          j = JSON.parse(decodeCipher(j.data));
-        if (!j)
-          return [];
-        var items = [];
-        if (Array.isArray(j.streams)) {
-          j.streams.forEach(function(s) {
-            if (s && s.url && isEnglish(s.language))
-              items.push({ url: s.url, headers: s.headers, type: s.type, language: s.language });
-          });
-        } else if (j.url) {
-          items.push({ url: j.url, headers: j.headers });
-          (Array.isArray(j.all_urls) ? j.all_urls : []).slice(0, 2).forEach(function(u) {
-            if (u && u !== j.url)
-              items.push({ url: u, headers: j.headers });
-          });
+        if (j && j.v === 2 && j.d) {
+          var payload = j;
+          try {
+            return shapeServerJson(server, tryDecrypt(payload.d, payload.n));
+          } catch (e) {
+            return refreshSecret().then(function() {
+              return shapeServerJson(server, tryDecrypt(payload.d, payload.n));
+            });
+          }
         }
-        return items.map(function(it) {
-          var isMp4 = it.type === "mp4" || /\.(mp4|mkv)(\?|$)/i.test(it.url);
-          var headers = {};
-          var src = it.headers && typeof it.headers === "object" ? it.headers : {};
-          for (var k in src)
-            headers[String(k).trim()] = String(src[k]).trim();
-          if (!headers["User-Agent"])
-            headers["User-Agent"] = UA;
-          return { server: server.label, url: String(it.url).replace(/\s+/g, ""), headers, isMp4 };
-        });
+        if (j && j.encrypted && typeof j.data === "string")
+          j = JSON.parse(decodeCipher(j.data));
+        return shapeServerJson(server, j);
       }).catch(function() {
         return [];
       });
