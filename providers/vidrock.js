@@ -1,6 +1,6 @@
 /**
  * vidrock - Built from src/vidrock/
- * Generated: 2026-10-02T21:49:03.960Z
+ * Generated: 2026-11-01T09:12:34.618Z
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -474,6 +474,14 @@ var require_validate = __commonJS({
             var len = parseInt(r.headers.get("content-length") || "0", 10);
             if (len && len < 1e3)
               throw new Error("segment too small");
+            if (/^image\//i.test(r.headers.get("content-type") || "")) {
+              return r.arrayBuffer().then(function(buf) {
+                var b = new Uint8Array(buf);
+                if (b.length > 4 && b[0] === 137 && b[1] === 80 && b[2] === 78 && b[3] === 71)
+                  throw new Error("segment is a PNG image");
+                return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+              });
+            }
             if (controller) {
               controller.abort();
               return { height: maxWidth ? qualityFromWidth(maxWidth) : null };

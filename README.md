@@ -22,6 +22,10 @@ A small, curated set of streaming providers for the [Nuvio](https://github.com/t
 | **vidfast** | Movies, TV | Up to 2160p (HLS ladder: 2160/1080/720/480) | English subtitles. Needs enc-dec.app. |
 | **cinejoy** | Movies, TV | Up to 2160p (HLS, several independent servers) | English subtitles. Needs enc-dec.app. |
 | **vidnest** | Movies, TV | 1080p HLS (+ 720p MKV for movies) | No subtitles. Its HLS servers share a CDN with vaplayer, so movie links overlap. |
+| **vidup** | Movies, TV | Up to 2160p | Same recipe/backend as vidfast through a separate front-end (redundancy). Needs enc-dec.app. |
+| **vidcore** | Movies, TV | Up to 2160p | Same recipe/backend as vidfast through a separate front-end (redundancy). Needs enc-dec.app. |
+| **vidrock** | Movies, TV | Up to 1080p HLS | English servers; its CDNs are sometimes slow. |
+| **kurage** | Anime | Up to 1080p | AniList-mapped, Japanese audio. |
 | **vaplayer** | Movies | 1080p HLS | No TV. |
 | **castle** | Movies, TV, K-dramas | 720p | Many subtitle languages, one stream per title. |
 | **anizone** | Anime | 1080p HLS | Japanese + English audio tracks, ASS subtitles. |

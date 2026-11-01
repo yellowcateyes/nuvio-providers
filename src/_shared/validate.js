@@ -106,6 +106,15 @@ function probeHls(stream) {
                 // content-type is not checked here: some CDNs label real segments text/html or image/*
                 var len = parseInt(r.headers.get('content-length') || '0', 10);
                 if (len && len < 1000) throw new Error('segment too small');
+                // Some hosts hide segments inside PNG/JPEG wrappers that real players cannot decode: look at the bytes
+                // when (and only when) the response claims to be an image.
+                if (/^image\//i.test(r.headers.get('content-type') || '')) {
+                    return r.arrayBuffer().then(function (buf) {
+                        var b = new Uint8Array(buf);
+                        if (b.length > 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) throw new Error('segment is a PNG image');
+                        return { height: maxWidth ? qualityFromWidth(maxWidth) : null };
+                    });
+                }
                 if (controller) { controller.abort(); return { height: maxWidth ? qualityFromWidth(maxWidth) : null }; }
                 return r.arrayBuffer().then(function (buf) {
                     if (buf.byteLength < 1000) throw new Error('segment too small');

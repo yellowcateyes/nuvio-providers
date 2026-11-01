@@ -12,6 +12,8 @@
  *   node scripts/verify.js                    # report only
  *   node scripts/verify.js vidrock castle     # only these providers
  *   node scripts/verify.js --write            # set enabled:false in manifest.json for providers with no playable stream
+
+ *   node scripts/verify.js --manifest=path    # test a different manifest (filenames resolve relative to it)
  *   node scripts/verify.js --all              # include providers that are already disabled
  *
  * In proxied environments run with NODE_USE_ENV_PROXY=1 so Node's fetch uses the proxy.
@@ -21,7 +23,8 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const MANIFEST = path.join(ROOT, 'manifest.json');
+const manifestArg = process.argv.slice(2).find(a => a.startsWith('--manifest='));
+const MANIFEST = manifestArg ? path.resolve(manifestArg.slice(11)) : path.join(ROOT, 'manifest.json');
 const args = process.argv.slice(2);
 const WRITE = args.includes('--write');
 const ALL = args.includes('--all');
@@ -36,7 +39,7 @@ const TITLES = {
 const ANIME = { movie: [['372058', 'movie'], ['129', 'movie']], tv: [['85937', 'tv', 1, 1], ['95479', 'tv', 1, 1]] };
 const KDRAMA = { movie: [], tv: [['93405', 'tv', 1, 1], ['197067', 'tv', 1, 1]] };
 const TITLES_BY_PROVIDER = {
-    animeheaven: ANIME, kisskh: KDRAMA, reanime: ANIME, animepahe: ANIME, hianime: ANIME, anizone: ANIME, animekai: ANIME, 'vidnest-anime': ANIME,
+    animeheaven: ANIME, kurage: ANIME, kisskh: KDRAMA, reanime: ANIME, animepahe: ANIME, hianime: ANIME, anizone: ANIME, animekai: ANIME, 'vidnest-anime': ANIME,
 };
 const GET_STREAMS_TIMEOUT = 60000;
 const MAX_STREAMS_CHECKED = 12;
@@ -150,7 +153,7 @@ async function runTitle(getStreams, spec) {
         const types = sc.supportedTypes || ['movie', 'tv'];
         const out = { id: sc.id, results: [], playable: 0, loadError: null };
         let getStreams;
-        try { getStreams = loadProvider(path.join(ROOT, sc.filename)); }
+        try { getStreams = loadProvider(path.resolve(path.dirname(MANIFEST), sc.filename)); }
         catch (e) { out.loadError = e.message; verdicts.push(out); console.log(`✗ ${sc.id}: load error: ${e.message}`); continue; }
         for (const type of types) {
             for (const spec of (TITLES_BY_PROVIDER[sc.id] || TITLES)[type] || []) {
